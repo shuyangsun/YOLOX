@@ -91,7 +91,11 @@ class Darknet(nn.Module):
         outputs["dark4"] = x
         x = self.dark5(x)
         outputs["dark5"] = x
-        return {k: v for k, v in outputs.items() if k in self.out_features}
+        res = dict()
+        for k, v in outputs.items():
+            if k in self.out_features:
+                res[k] = v
+        return res
 
 
 class CSPDarknet(nn.Module):
@@ -176,4 +180,8 @@ class CSPDarknet(nn.Module):
         outputs["dark4"] = x
         x = self.dark5(x)
         outputs["dark5"] = x
-        return {k: v for k, v in outputs.items() if k in self.out_features}
+        res = dict()
+        for k, v in outputs.items():
+            if k in self.out_features:
+                res[k] = v
+        return res

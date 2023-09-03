@@ -32,6 +32,7 @@ class IOUloss(nn.Module):
         area_u = area_p + area_g - area_i
         iou = (area_i) / (area_u + 1e-16)
 
+        loss = torch.zeros(iou.shape)  # dummy value for trt compilation
         if self.loss_type == "iou":
             loss = 1 - iou ** 2
         elif self.loss_type == "giou":
