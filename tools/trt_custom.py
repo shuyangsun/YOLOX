@@ -7,9 +7,9 @@ import os
 import shutil
 from loguru import logger
 
-import tensorrt as trt
 import torch
-from torch2trt import torch2trt
+import tensorrt as trt
+import torch_tensorrt
 
 from yolox.exp import get_exp
 
@@ -58,14 +58,22 @@ def main():
     model.eval()
     model.cuda()
     model.head.decode_in_inference = False
-    x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
-    model_trt = torch2trt(
-        model,
-        [x],
-        fp16_mode=True,
-        log_level=trt.Logger.INFO,
-        max_workspace_size=(1 << args.workspace),
-        max_batch_size=args.batch,
+    model_trt = torch_tensorrt.compile(model,
+        require_full_compilation = True,
+        inputs = [
+            torch_tensorrt.Input( # Specify input object with shape and dtype
+                min_shape=[1, 3, exp.test_size[0], exp.test_size[1]],
+                opt_shape=[args.batch, 3, exp.test_size[0], exp.test_size[1]],
+                max_shape=[args.batch, 3, exp.test_size[0], exp.test_size[1]]
+            )
+        ],
+
+        # For inputs containing tuples or lists of tensors, use the `input_signature` argument:
+        # Below, we have an input consisting of a Tuple of two Tensors (Tuple[Tensor, Tensor])
+        # input_signature = ( (torch_tensorrt.Input(shape=[1, 3, 224, 224], dtype=torch.half),
+        #                      torch_tensorrt.Input(shape=[1, 3, 224, 224], dtype=torch.half)), ),
+
+        enabled_precisions = {torch.half}, # Run with FP16
     )
     torch.save(model_trt.state_dict(), os.path.join(file_name, "model_trt.pth"))
     logger.info("Converted TensorRT model done.")
