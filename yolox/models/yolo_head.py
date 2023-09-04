@@ -450,17 +450,17 @@ class YOLOXHead(nn.Module):
         y_shifts,
         cls_preds,
         obj_preds,
-        mode="gpu",
+        mode: str = "gpu",
     ):
 
-        if mode == "cpu":
-            print("-----------Using CPU for the Current Batch-------------")
-            gt_bboxes_per_image = gt_bboxes_per_image.cpu().float()
-            bboxes_preds_per_image = bboxes_preds_per_image.cpu().float()
-            gt_classes = gt_classes.cpu().float()
-            expanded_strides = expanded_strides.cpu().float()
-            x_shifts = x_shifts.cpu()
-            y_shifts = y_shifts.cpu()
+        # if mode == "cpu":
+        #     print("-----------Using CPU for the Current Batch-------------")
+        #     gt_bboxes_per_image = gt_bboxes_per_image.cpu().float()
+        #     bboxes_preds_per_image = bboxes_preds_per_image.cpu().float()
+        #     gt_classes = gt_classes.cpu().float()
+        #     expanded_strides = expanded_strides.cpu().float()
+        #     x_shifts = x_shifts.cpu()
+        #     y_shifts = y_shifts.cpu()
 
         fg_mask, geometry_relation = self.get_geometry_constraint(
             gt_bboxes_per_image,
@@ -474,9 +474,9 @@ class YOLOXHead(nn.Module):
         obj_preds_ = obj_preds[batch_idx][fg_mask]
         num_in_boxes_anchor = bboxes_preds_per_image.shape[0]
 
-        if mode == "cpu":
-            gt_bboxes_per_image = gt_bboxes_per_image.cpu()
-            bboxes_preds_per_image = bboxes_preds_per_image.cpu()
+        # if mode == "cpu":
+        #     gt_bboxes_per_image = gt_bboxes_per_image.cpu()
+        #     bboxes_preds_per_image = bboxes_preds_per_image.cpu()
 
         pair_wise_ious = bboxes_iou(gt_bboxes_per_image, bboxes_preds_per_image, False)
 
@@ -486,8 +486,8 @@ class YOLOXHead(nn.Module):
         )
         pair_wise_ious_loss = -torch.log(pair_wise_ious + 1e-8)
 
-        if mode == "cpu":
-            cls_preds_, obj_preds_ = cls_preds_.cpu(), obj_preds_.cpu()
+        # if mode == "cpu":
+        #     cls_preds_, obj_preds_ = cls_preds_.cpu(), obj_preds_.cpu()
 
         with torch.cuda.amp.autocast(enabled=False):
             cls_preds_ = (
@@ -514,11 +514,11 @@ class YOLOXHead(nn.Module):
         ) = self.simota_matching(cost, pair_wise_ious, gt_classes, num_gt, fg_mask)
         del pair_wise_cls_loss, cost, pair_wise_ious, pair_wise_ious_loss
 
-        if mode == "cpu":
-            gt_matched_classes = gt_matched_classes.cuda()
-            fg_mask = fg_mask.cuda()
-            pred_ious_this_matching = pred_ious_this_matching.cuda()
-            matched_gt_inds = matched_gt_inds.cuda()
+        # if mode == "cpu":
+        #     gt_matched_classes = gt_matched_classes.cuda()
+        #     fg_mask = fg_mask.cuda()
+        #     pred_ious_this_matching = pred_ious_this_matching.cuda()
+        #     matched_gt_inds = matched_gt_inds.cuda()
 
         return (
             gt_matched_classes,
