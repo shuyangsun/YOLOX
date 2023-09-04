@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from yolox.utils import bboxes_iou, cxcywh2xyxy, visualize_assign
+from ..utils import bboxes_iou, cxcywh2xyxy, visualize_assign
 
 from .losses import IOUloss
 from .network_blocks import BaseConv, DWConv
