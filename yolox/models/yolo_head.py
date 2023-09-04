@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from yolox.utils import bboxes_iou, cxcywh2xyxy, meshgrid, visualize_assign
+from yolox.utils import bboxes_iou, cxcywh2xyxy, visualize_assign
 
 from .losses import IOUloss
 from .network_blocks import BaseConv, DWConv
@@ -220,7 +220,7 @@ class YOLOXHead(nn.Module):
         n_ch = 5 + self.num_classes
         hsize, wsize = output.shape[-2:]
         if grid.shape[2:4] != output.shape[2:4]:
-            yv, xv = meshgrid([torch.arange(hsize), torch.arange(wsize)])
+            yv, xv = torch.meshgrid(torch.arange(hsize), torch.arange(wsize))
             grid = torch.stack((xv, yv), 2).view(1, 1, hsize, wsize, 2).type(dtype)
             self.grids[k] = grid
 
@@ -237,7 +237,7 @@ class YOLOXHead(nn.Module):
         grids = []
         strides = []
         for (hsize, wsize), stride in zip(self.hw, self.strides):
-            yv, xv = meshgrid([torch.arange(hsize), torch.arange(wsize)])
+            yv, xv = torch.meshgrid(torch.arange(hsize), torch.arange(wsize))
             grid = torch.stack((xv, yv), 2).view(1, -1, 2)
             grids.append(grid)
             shape = grid.shape[:2]
