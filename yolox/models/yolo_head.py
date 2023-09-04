@@ -146,19 +146,20 @@ class YOLOXHead(nn.Module):
         y_shifts = []
         expanded_strides = []
 
-        for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
-            zip(self.cls_convs, self.reg_convs, self.strides, xin)
+        for k, (cls_conv, reg_conv, stem, cls_pred, reg_pred, obj_pred) in enumerate(
+            zip(self.cls_convs, self.reg_convs, self.stems, self.cls_preds, self.reg_preds, self.obj_preds)
         ):
-            x = self.stems[k](x)
+            x = stem(xin[k])
+            stride_this_level = self.strides[k]
             cls_x = x
             reg_x = x
 
             cls_feat = cls_conv(cls_x)
-            cls_output = self.cls_preds[k](cls_feat)
+            cls_output = cls_pred(cls_feat)
 
             reg_feat = reg_conv(reg_x)
-            reg_output = self.reg_preds[k](reg_feat)
-            obj_output = self.obj_preds[k](reg_feat)
+            reg_output = reg_pred(reg_feat)
+            obj_output = obj_pred(reg_feat)
 
             if self.training:
                 output = torch.cat([reg_output, obj_output, cls_output], 1)
