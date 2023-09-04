@@ -163,9 +163,8 @@ class YOLOXHead(nn.Module):
 
             if self.training:
                 output = torch.cat([reg_output, obj_output, cls_output], 1)
-                output, grid = self.get_output_and_grid(
-                    output, k, stride_this_level, xin[0].type()
-                )
+                dtype = xin[0].type()
+                output, grid = self.get_output_and_grid(output, k, stride_this_level, dtype)
                 x_shifts.append(grid[:, :, 0])
                 y_shifts.append(grid[:, :, 1])
                 expanded_strides.append(
@@ -213,7 +212,7 @@ class YOLOXHead(nn.Module):
             else:
                 return outputs
 
-    def get_output_and_grid(self, output, k, stride, dtype):
+    def get_output_and_grid(self, output, k: int, stride: int, dtype):
         grid = self.grids[k]
 
         batch_size = output.shape[0]
