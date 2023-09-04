@@ -14,6 +14,8 @@ from yolox.utils import bboxes_iou, cxcywh2xyxy, visualize_assign
 from .losses import IOUloss
 from .network_blocks import BaseConv, DWConv
 
+from typing import List
+
 
 class YOLOXHead(nn.Module):
     def __init__(
@@ -255,12 +257,12 @@ class YOLOXHead(nn.Module):
     def get_losses(
         self,
         imgs,
-        x_shifts,
-        y_shifts,
-        expanded_strides,
+        x_shifts: List[torch.Tensor],
+        y_shifts: List[torch.Tensor],
+        expanded_strides: List[torch.Tensor],
         labels,
         outputs,
-        origin_preds,
+        origin_preds: List[torch.Tensor],
         dtype,
     ):
         bbox_preds = outputs[:, :, :4]  # [batch, n_anchors_all, 4]
@@ -274,8 +276,6 @@ class YOLOXHead(nn.Module):
         x_shifts = torch.cat(x_shifts, 1)  # [1, n_anchors_all]
         y_shifts = torch.cat(y_shifts, 1)  # [1, n_anchors_all]
         expanded_strides = torch.cat(expanded_strides, 1)
-        if self.use_l1:
-            origin_preds = torch.cat(origin_preds, 1)
 
         cls_targets = []
         reg_targets = []
@@ -300,56 +300,74 @@ class YOLOXHead(nn.Module):
                 gt_classes = labels[batch_idx, :num_gt, 0]
                 bboxes_preds_per_image = bbox_preds[batch_idx]
 
-                try:
-                    (
-                        gt_matched_classes,
-                        fg_mask,
-                        pred_ious_this_matching,
-                        matched_gt_inds,
-                        num_fg_img,
-                    ) = self.get_assignments(  # noqa
-                        batch_idx,
-                        num_gt,
-                        gt_bboxes_per_image,
-                        gt_classes,
-                        bboxes_preds_per_image,
-                        expanded_strides,
-                        x_shifts,
-                        y_shifts,
-                        cls_preds,
-                        obj_preds,
-                    )
-                except RuntimeError as e:
-                    # TODO: the string might change, consider a better way
-                    if "CUDA out of memory. " not in str(e):
-                        raise  # RuntimeError might not caused by CUDA OOM
+                # try:
+                #     (
+                #         gt_matched_classes,
+                #         fg_mask,
+                #         pred_ious_this_matching,
+                #         matched_gt_inds,
+                #         num_fg_img,
+                #     ) = self.get_assignments(  # noqa
+                #         batch_idx,
+                #         num_gt,
+                #         gt_bboxes_per_image,
+                #         gt_classes,
+                #         bboxes_preds_per_image,
+                #         expanded_strides,
+                #         x_shifts,
+                #         y_shifts,
+                #         cls_preds,
+                #         obj_preds,
+                #     )
+                # except RuntimeError as e:
+                #     # TODO: the string might change, consider a better way
+                #     if "CUDA out of memory. " not in str(e):
+                #         raise  # RuntimeError might not caused by CUDA OOM
 
-                    logger.error(
-                        "OOM RuntimeError is raised due to the huge memory cost during label assignment. \
-                           CPU mode is applied in this batch. If you want to avoid this issue, \
-                           try to reduce the batch size or image size."
-                    )
-                    torch.cuda.empty_cache()
-                    (
-                        gt_matched_classes,
-                        fg_mask,
-                        pred_ious_this_matching,
-                        matched_gt_inds,
-                        num_fg_img,
-                    ) = self.get_assignments(  # noqa
-                        batch_idx,
-                        num_gt,
-                        gt_bboxes_per_image,
-                        gt_classes,
-                        bboxes_preds_per_image,
-                        expanded_strides,
-                        x_shifts,
-                        y_shifts,
-                        cls_preds,
-                        obj_preds,
-                        "cpu",
-                    )
+                #     logger.error(
+                #         "OOM RuntimeError is raised due to the huge memory cost during label assignment. \
+                #            CPU mode is applied in this batch. If you want to avoid this issue, \
+                #            try to reduce the batch size or image size."
+                #     )
+                #     torch.cuda.empty_cache()
+                #     (
+                #         gt_matched_classes,
+                #         fg_mask,
+                #         pred_ious_this_matching,
+                #         matched_gt_inds,
+                #         num_fg_img,
+                #     ) = self.get_assignments(  # noqa
+                #         batch_idx,
+                #         num_gt,
+                #         gt_bboxes_per_image,
+                #         gt_classes,
+                #         bboxes_preds_per_image,
+                #         expanded_strides,
+                #         x_shifts,
+                #         y_shifts,
+                #         cls_preds,
+                #         obj_preds,
+                #         "cpu",
+                #     )
 
+                (
+                    gt_matched_classes,
+                    fg_mask,
+                    pred_ious_this_matching,
+                    matched_gt_inds,
+                    num_fg_img,
+                ) = self.get_assignments(  # noqa
+                    batch_idx,
+                    num_gt,
+                    gt_bboxes_per_image,
+                    gt_classes,
+                    bboxes_preds_per_image,
+                    expanded_strides,
+                    x_shifts,
+                    y_shifts,
+                    cls_preds,
+                    obj_preds,
+                )
                 torch.cuda.empty_cache()
                 num_fg += num_fg_img
 
@@ -395,7 +413,7 @@ class YOLOXHead(nn.Module):
         ).sum() / num_fg
         if self.use_l1:
             loss_l1 = (
-                self.l1_loss(origin_preds.view(-1, 4)[fg_masks], l1_targets)
+                self.l1_loss(torch.cat(origin_preds, 1).view(-1, 4)[fg_masks], l1_targets)
             ).sum() / num_fg
         else:
             loss_l1 = 0.0
