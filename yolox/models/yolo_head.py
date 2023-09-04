@@ -14,7 +14,7 @@ from ..utils import bboxes_iou, cxcywh2xyxy, visualize_assign
 from .losses import IOUloss
 from .network_blocks import BaseConv, DWConv
 
-from typing import List
+from typing import List, Tuple
 
 
 class YOLOXHead(nn.Module):
@@ -141,7 +141,8 @@ class YOLOXHead(nn.Module):
             b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
-    def forward(self, xin, labels=None, imgs=None):
+    # def forward(self, xin: torch.Tensor, labels=None, imgs=None):
+    def forward(self, xin: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
         outputs = []
         origin_preds = []
         x_shifts = []
@@ -192,27 +193,28 @@ class YOLOXHead(nn.Module):
 
             outputs.append(output)
 
-        if self.training:
-            return self.get_losses(
-                imgs,
-                x_shifts,
-                y_shifts,
-                expanded_strides,
-                labels,
-                torch.cat(outputs, 1),
-                origin_preds,
-                dtype=xin[0].dtype,
-            )
-        else:
-            self.hw = [x.shape[-2:] for x in outputs]
-            # [batch, n_anchors_all, 85]
-            outputs = torch.cat(
-                [x.flatten(start_dim=2) for x in outputs], dim=2
-            ).permute(0, 2, 1)
-            if self.decode_in_inference:
-                return self.decode_outputs(outputs, dtype=xin[0].type())
-            else:
-                return outputs
+        # if self.training:
+        #     return self.get_losses(
+        #         imgs,
+        #         x_shifts,
+        #         y_shifts,
+        #         expanded_strides,
+        #         labels,
+        #         torch.cat(outputs, 1),
+        #         origin_preds,
+        #         dtype=xin[0].dtype,
+        #     )
+        # else:
+
+        # Everything below used to belong to the "else" branch
+        hw: List[Tuple[int, int]] = [(x.shape[-2], x.shape[-1]) for x in outputs]
+        # [batch, n_anchors_all, 85]
+        outputs = torch.cat(
+            [x.flatten(start_dim=2) for x in outputs], dim=2
+        ).permute(0, 2, 1)
+        if self.decode_in_inference:
+            return self.decode_outputs(outputs, hw, dtype=xin[0].type())
+        return outputs
 
     def get_output_and_grid(self, output, k: int, stride: int, dtype):
         grid = self.grids[k]
@@ -234,15 +236,16 @@ class YOLOXHead(nn.Module):
         output[..., 2:4] = torch.exp(output[..., 2:4]) * stride
         return output, grid
 
-    def decode_outputs(self, outputs, dtype):
+    def decode_outputs(self, outputs: torch.Tensor, hw: List[Tuple[int, int]], dtype):
         grids = []
         strides = []
-        for (hsize, wsize), stride in zip(self.hw, self.strides):
+        for i, stride in enumerate(self.strides):
+            hsize = hw[i][0]
+            wsize = hw[i][1]
             yv, xv = torch.meshgrid(torch.arange(hsize), torch.arange(wsize))
             grid = torch.stack((xv, yv), 2).view(1, -1, 2)
             grids.append(grid)
-            shape = grid.shape[:2]
-            strides.append(torch.full((*shape, 1), stride))
+            strides.append(torch.full((1, hsize * wsize, 1), stride))
 
         grids = torch.cat(grids, dim=1).type(dtype)
         strides = torch.cat(strides, dim=1).type(dtype)
@@ -297,8 +300,8 @@ class YOLOXHead(nn.Module):
                 fg_mask = outputs.new_zeros(total_num_anchors, dtype=torch.bool)
             else:
                 gt_bboxes_per_image = labels[batch_idx, :num_gt, 1:5]
-                gt_classes = labels[batch_idx, :num_gt, 0]
                 bboxes_preds_per_image = bbox_preds[batch_idx]
+                gt_classes = labels[batch_idx, :num_gt, 0]
 
                 # try:
                 #     (
@@ -450,7 +453,7 @@ class YOLOXHead(nn.Module):
         y_shifts,
         cls_preds,
         obj_preds,
-        mode: str = "gpu",
+        # mode: str = "gpu",
     ):
 
         # if mode == "cpu":

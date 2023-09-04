@@ -59,13 +59,11 @@ def main():
     model.cuda()
     model.head.decode_in_inference = False
     model_trt = torch_tensorrt.compile(model,
-        require_full_compilation = True,
+        # require_full_compilation = True,
         inputs = [
             torch_tensorrt.Input( # Specify input object with shape and dtype
-                min_shape=[1, 3, exp.test_size[0], exp.test_size[1]],
-                opt_shape=[args.batch, 3, exp.test_size[0], exp.test_size[1]],
-                max_shape=[args.batch, 3, exp.test_size[0], exp.test_size[1]]
-            )
+                shape=[args.batch, 3, exp.test_size[0], exp.test_size[1]],
+            ),
         ],
 
         # For inputs containing tuples or lists of tensors, use the `input_signature` argument:

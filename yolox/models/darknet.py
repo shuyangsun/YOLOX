@@ -2,9 +2,12 @@
 # -*- encoding: utf-8 -*-
 # Copyright (c) Megvii Inc. All rights reserved.
 
+import torch
 from torch import nn
 
 from .network_blocks import BaseConv, CSPLayer, DWConv, Focus, ResLayer, SPPBottleneck
+
+from typing import Tuple
 
 
 class Darknet(nn.Module):
@@ -79,7 +82,7 @@ class Darknet(nn.Module):
         )
         return m
 
-    def forward(self, x):
+    def forward(self, x: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
         outputs = {}
         x = self.stem(x)
         outputs["stem"] = x
@@ -168,7 +171,7 @@ class CSPDarknet(nn.Module):
             ),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         outputs = {}
         x = self.stem(x)
         outputs["stem"] = x

@@ -8,7 +8,6 @@ import torch.nn as nn
 from .darknet import CSPDarknet
 from .network_blocks import BaseConv, CSPLayer, DWConv
 
-
 class YOLOPAFPN(nn.Module):
     """
     YOLOv3 model. Darknet 53 is the default backbone of this model.
@@ -80,7 +79,7 @@ class YOLOPAFPN(nn.Module):
             act=act,
         )
 
-    def forward(self, input):
+    def forward(self, input: torch.Tensor):
         """
         Args:
             inputs: input images.

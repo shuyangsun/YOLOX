@@ -8,6 +8,7 @@ import torch.nn as nn
 from .darknet import Darknet
 from .network_blocks import BaseConv
 
+from typing import Tuple
 
 class YOLOFPN(nn.Module):
     """
@@ -56,7 +57,7 @@ class YOLOFPN(nn.Module):
         print("loading pretrained weights...")
         self.backbone.load_state_dict(state_dict)
 
-    def forward(self, inputs):
+    def forward(self, inputs: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
         """
         Args:
             inputs (Tensor): input image.
