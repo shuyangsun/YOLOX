@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import torchvision
 
+from typing import List, Tuple
+
 __all__ = [
     "filter_box",
     "postprocess",
@@ -18,7 +20,8 @@ __all__ = [
 ]
 
 
-def filter_box(output, scale_range):
+@torch.jit.script
+def filter_box(output: torch.Tensor, scale_range: Tuple[float, float]):
     """
     output: (N, 5+class) shape
     """
@@ -29,15 +32,17 @@ def filter_box(output, scale_range):
     return output[keep]
 
 
-def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agnostic=False):
-    box_corner = prediction.new(prediction.shape)
+@torch.jit.script
+def postprocess(prediction: torch.Tensor, num_classes: int, conf_thre: float = 0.7, nms_thre: float = 0.45, class_agnostic: bool =False):
+    # box_corner = prediction.new(prediction.shape)
+    box_corner = torch.zeros_like(prediction)
     box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
     box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
     box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
     box_corner[:, :, 3] = prediction[:, :, 1] + prediction[:, :, 3] / 2
     prediction[:, :, :4] = box_corner[:, :, :4]
 
-    output = [None for _ in range(len(prediction))]
+    output: List[torch.Tensor] = list()
     for i, image_pred in enumerate(prediction):
 
         # If none are remaining => process next image
@@ -68,14 +73,15 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
             )
 
         detections = detections[nms_out_index]
-        if output[i] is None:
-            output[i] = detections
+        if len(output) <= i:
+            output.append(detections)
         else:
             output[i] = torch.cat((output[i], detections))
 
     return output
 
 
+@torch.jit.script
 def bboxes_iou(bboxes_a: torch.Tensor, bboxes_b: torch.Tensor, xyxy: bool =True):
     if bboxes_a.shape[1] != 4 or bboxes_b.shape[1] != 4:
         raise IndexError
@@ -102,7 +108,7 @@ def bboxes_iou(bboxes_a: torch.Tensor, bboxes_b: torch.Tensor, xyxy: bool =True)
     return area_i / (area_a[:, None] + area_b - area_i)
 
 
-def matrix_iou(a, b):
+def matrix_iou(a: np.ndarray, b: np.ndarray):
     """
     return iou of a and b, numpy version for data augenmentation
     """
