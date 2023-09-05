@@ -98,7 +98,7 @@ def main():
 
     num_samples = inputs[0].shape[0]
     start = time.time()
-    for i in range(inputs[0].shape[0]):
+    for i in range(num_samples):
         _ = model(inputs[0][i:i+1])
     print("PyTorch model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_samples))
 
@@ -112,7 +112,7 @@ def main():
     )
 
     start = time.time()
-    for i in range(inputs[0].shape[0]):
+    for i in range(num_samples):
         _ = model(inputs[0][i:i+1])
     print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_samples))
 
