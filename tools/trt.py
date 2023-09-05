@@ -39,6 +39,9 @@ def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> List[torch.Ten
     res: List[torch.Tensor] = list()
     for root, _, files in os.walk(img_dir):
         for f in files:
+            f_lower = f.lower()
+            if not f_lower.endswith(".png") or f_lower.endswith(".jpg") or f_lower.endswith(".jpeg"):
+                continue
             img = cv2.imread(os.path.join(root, f))
             img, _ = preproc(img, input_size)
             img = torch.from_numpy(img).unsqueeze(0).to('cuda:0')
