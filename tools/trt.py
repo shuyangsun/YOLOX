@@ -35,7 +35,7 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
     return padded_img, r
 
-def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> List[torch.Tensor]:
+def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> torch.Tensor:
     res: List[torch.Tensor] = list()
     for root, _, files in os.walk(img_dir):
         for f in files:
@@ -46,7 +46,7 @@ def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> List[torch.Ten
             img, _ = preproc(img, input_size)
             img = torch.from_numpy(img).unsqueeze(0).to('cuda:0')
             res.append(img)
-    return res
+    return torch.cat(res)
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX ncnn deploy")
@@ -95,26 +95,26 @@ def main():
     model.head.decode_in_inference = False
     inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).to("cuda:0")]
     if args.inputs is not None:
-        inputs = prepare_samples(args.inputs, exp.test_size)
+        inputs = [prepare_samples(args.inputs, exp.test_size)]
 
     start = time.time()
-    for cur in inputs:
-        _ = model(cur)
-    print("PyTorch model fps: {fps:.3f}".format(fps=(time.time() - start)/len(inputs)))
+    for i in range(inputs[0].shape[0]):
+        _ = model(inputs[0][i:i+1])
+    print("PyTorch model fps (avg of {num} samples): {fps:.3f}".format(num=inputs[0].shape[0], fps=(time.time() - start)/inputs[0].shape[0]))
     
     model_trt = torch2trt(
         model,
         inputs,
-        fp16_mode=True,
+        fp16_mode=False,
         log_level=trt.Logger.INFO,
         max_workspace_size=(1 << args.workspace),
         max_batch_size=args.batch,
     )
 
     start = time.time()
-    for cur in inputs:
-        _ = model_trt(cur)
-    print("TensorRT model fps: {fps:.3f}".format(fps=(time.time() - start)/len(inputs)))
+    for i in range(inputs[0].shape[0]):
+        _ = model(inputs[0][i:i+1])
+    print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=inputs[0].shape[0], fps=(time.time() - start)/inputs[0].shape[0]))
 
     torch.save(model_trt.state_dict(), os.path.join(file_name, "model_trt.pth"))
     logger.info("Converted TensorRT model done.")
