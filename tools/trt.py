@@ -90,7 +90,7 @@ def main():
 
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
-    model.head.decode_in_inference = False
+    model.head.decode_in_inference = True
     model = model.eval().half().to('cuda:0')
     inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1], dtype=torch.float16, device="cuda:0")]
     if args.inputs is not None:
@@ -123,7 +123,7 @@ def main():
 
     torch.save(model_trt.state_dict(), os.path.join(file_name, f"{out_basename}.pth"))
     logger.info("Converted TensorRT model done.")
-    engine_file = os.path.join(file_name, "model_trt.engine")
+    engine_file = os.path.join(file_name, f"{out_basename}.engine")
     engine_file_demo = os.path.join("demo", "TensorRT", "cpp", f"{out_basename}.engine")
     with open(engine_file, "wb") as f:
         f.write(model_trt.engine.serialize())
