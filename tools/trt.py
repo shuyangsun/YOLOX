@@ -6,6 +6,7 @@ import argparse
 import os
 import cv2
 import shutil
+import time
 from loguru import logger
 
 import tensorrt as trt
@@ -92,6 +93,12 @@ def main():
     inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).to("cuda:0")]
     if args.inputs is not None:
         inputs = prepare_samples(args.inputs, exp.test_size)
+
+    start = time.time()
+    for cur in inputs:
+        _ = model(cur)
+    print("PyTorch model fps: {fps:.3f}".format(fps=(time.time() - start)/len(inputs)))
+    
     model_trt = torch2trt(
         model,
         inputs,
@@ -100,6 +107,12 @@ def main():
         max_workspace_size=(1 << args.workspace),
         max_batch_size=args.batch,
     )
+
+    start = time.time()
+    for cur in inputs:
+        _ = model_trt(cur)
+    print("TensorRT model fps: {fps:.3f}".format(fps=(time.time() - start)/len(inputs)))
+
     torch.save(model_trt.state_dict(), os.path.join(file_name, "model_trt.pth"))
     logger.info("Converted TensorRT model done.")
     engine_file = os.path.join(file_name, "model_trt.engine")
