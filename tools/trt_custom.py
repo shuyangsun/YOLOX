@@ -4,12 +4,13 @@
 
 import argparse
 import os
-import shutil
+import cv2
+import time
 from loguru import logger
 
 import torch
-import tensorrt as trt
 import torch_tensorrt
+import numpy as np
 
 from yolox.exp import get_exp
 
@@ -33,6 +34,24 @@ def make_parser():
     return parser
 
 
+def preproc(img, input_size, swap=(2, 0, 1)):
+    if len(img.shape) == 3:
+        padded_img = np.ones((input_size[0], input_size[1], 3), dtype=np.uint8) * 114
+    else:
+        padded_img = np.ones(input_size, dtype=np.uint8) * 114
+
+    r = min(input_size[0] / img.shape[0], input_size[1] / img.shape[1])
+    resized_img = cv2.resize(
+        img,
+        (int(img.shape[1] * r), int(img.shape[0] * r)),
+        interpolation=cv2.INTER_LINEAR,
+    ).astype(np.uint8)
+    padded_img[: int(img.shape[0] * r), : int(img.shape[1] * r)] = resized_img
+
+    padded_img = padded_img.transpose(swap)
+    padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
+    return padded_img, r
+
 @logger.catch
 @torch.no_grad()
 def main():
@@ -55,14 +74,24 @@ def main():
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
     model.head.decode_in_inference = False
-    model = model.eval().to('cuda:0')
+    model = model.eval().half().to('cuda:0')
+    img = cv2.imread('/home/ssun/Desktop/test_img.png')
+    img, _ = preproc(img, exp.test_size)
+    img = torch.from_numpy(img).unsqueeze(0)
+    img = img.half().to('cuda:0')
+    test_iter = 10
+    start = time.time()
+    for _ in range(test_iter):
+        _ = model(img)
+    print(f"torch: {(time.time() - start)/test_iter}")
     model_trt = torch_tensorrt.compile(model,
         # require_full_compilation = True,
         inputs = [
-            torch_tensorrt.Input( # Specify input object with shape and dtype
-                shape=[1, 3, exp.test_size[0], exp.test_size[1]],
-                dtype=torch.float32,
-            ),
+            img,
+            # torch_tensorrt.Input( # Specify input object with shape and dtype
+            #     shape=[1, 3, exp.test_size[0], exp.test_size[1]],
+            #     dtype=torch.float32,
+            # ),
         ],
 
         # For inputs containing tuples or lists of tensors, use the `input_signature` argument:
@@ -70,16 +99,16 @@ def main():
         # input_signature = ( (torch_tensorrt.Input(shape=[1, 3, 224, 224], dtype=torch.half),
         #                      torch_tensorrt.Input(shape=[1, 3, 224, 224], dtype=torch.half)), ),
 
-        enabled_precisions = {torch.float32}, # Run with FP16
+        enabled_precisions = {torch.half}, # Run with FP16
     )
     torch.save(model_trt.state_dict(), os.path.join(file_name, "model_trt.pth"))
     logger.info("Converted TensorRT model done.")
-    engine_file = os.path.join(file_name, "model_trt.engine")
-    engine_file_demo = os.path.join("demo", "TensorRT", "cpp", "model_trt.engine")
-    with open(engine_file, "wb") as f:
-        f.write(model_trt.engine.serialize())
-
-    shutil.copyfile(engine_file, engine_file_demo)
+    engine_file = os.path.join(file_name, "model_trt.ts")
+    torch.jit.save(model_trt, engine_file)
+    start = time.time()
+    for _ in range(test_iter):
+        _ = model_trt(img)
+    print(f"tensorrt: {(time.time() - start)/test_iter}")
 
     logger.info("Converted TensorRT model engine file is saved for C++ inference.")
 
