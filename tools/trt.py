@@ -44,7 +44,7 @@ def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> torch.Tensor:
                 continue
             img = cv2.imread(os.path.join(root, f))
             img, _ = preproc(img, input_size)
-            img = torch.from_numpy(img).unsqueeze(0).to('cuda:0')
+            img = torch.from_numpy(img).unsqueeze(0).half().to('cuda:0')
             res.append(img)
     return torch.cat(res)
 
@@ -90,22 +90,24 @@ def main():
 
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
-    model.eval()
-    model.cuda()
     model.head.decode_in_inference = False
-    inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).to("cuda:0")]
+    model = model.eval().half().to('cuda:0')
+    inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1], dtype=torch.float16, device="cuda:0")]
     if args.inputs is not None:
         inputs = [prepare_samples(args.inputs, exp.test_size)]
 
+    num_samples = inputs[0].shape[0]
     start = time.time()
     for i in range(inputs[0].shape[0]):
-        _ = model(inputs[0][i:i+1])
-    print("PyTorch model fps (avg of {num} samples): {fps:.3f}".format(num=inputs[0].shape[0], fps=(time.time() - start)/inputs[0].shape[0]))
-    
+        pred = model(inputs[0][i:i+1])
+        if i == 0:
+            print("TensorRT first sample prediction:")
+    print("PyTorch model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_samples))
+
     model_trt = torch2trt(
         model,
         inputs,
-        fp16_mode=False,
+        fp16_mode=True,
         log_level=trt.Logger.INFO,
         max_workspace_size=(1 << args.workspace),
         max_batch_size=args.batch,
@@ -113,13 +115,21 @@ def main():
 
     start = time.time()
     for i in range(inputs[0].shape[0]):
-        _ = model(inputs[0][i:i+1])
-    print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=inputs[0].shape[0], fps=(time.time() - start)/inputs[0].shape[0]))
+        pred = model(inputs[0][i:i+1])
+        if i == 0:
+            print("TensorRT first sample prediction:")
+            print(pred)
+    print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_samples))
 
-    torch.save(model_trt.state_dict(), os.path.join(file_name, "model_trt.pth"))
+    basename = os.path.basename(args.ckpt)
+    components = basename.split(".")[:-1]
+    components[-1] += "_trt"
+    out_basename = ".".join(components)
+
+    torch.save(model_trt.state_dict(), os.path.join(file_name, f"{out_basename}.pth"))
     logger.info("Converted TensorRT model done.")
     engine_file = os.path.join(file_name, "model_trt.engine")
-    engine_file_demo = os.path.join("demo", "TensorRT", "cpp", "model_trt.engine")
+    engine_file_demo = os.path.join("demo", "TensorRT", "cpp", f"{out_basename}.engine")
     with open(engine_file, "wb") as f:
         f.write(model_trt.engine.serialize())
 
