@@ -107,7 +107,7 @@ def main():
         inputs = [prepare_samples(args.inputs, exp.test_size, args.batch)]
 
     num_samples = args.batch
-    num_iter = 1000
+    num_iter = 100
     start = time.time()
     for _ in range(num_iter):
         pred = model(inputs[0])
