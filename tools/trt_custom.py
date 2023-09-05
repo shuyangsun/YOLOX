@@ -30,7 +30,6 @@ def make_parser():
     parser.add_argument(
         "-w", '--workspace', type=int, default=32, help='max workspace size in detect'
     )
-    parser.add_argument("-b", '--batch', type=int, default=1, help='max batch size in detect')
     return parser
 
 
@@ -55,14 +54,14 @@ def main():
 
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
-    model.eval()
-    model.cuda()
     model.head.decode_in_inference = False
+    model = model.eval().to('cuda:0')
     model_trt = torch_tensorrt.compile(model,
         # require_full_compilation = True,
         inputs = [
             torch_tensorrt.Input( # Specify input object with shape and dtype
-                shape=[args.batch, 3, exp.test_size[0], exp.test_size[1]],
+                shape=[1, 3, exp.test_size[0], exp.test_size[1]],
+                dtype=torch.float32,
             ),
         ],
 
@@ -71,7 +70,7 @@ def main():
         # input_signature = ( (torch_tensorrt.Input(shape=[1, 3, 224, 224], dtype=torch.half),
         #                      torch_tensorrt.Input(shape=[1, 3, 224, 224], dtype=torch.half)), ),
 
-        enabled_precisions = {torch.half}, # Run with FP16
+        enabled_precisions = {torch.float32}, # Run with FP16
     )
     torch.save(model_trt.state_dict(), os.path.join(file_name, "model_trt.pth"))
     logger.info("Converted TensorRT model done.")
