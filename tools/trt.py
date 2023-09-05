@@ -70,10 +70,11 @@ def make_parser():
     )
     parser.add_argument("-c", "--ckpt", default=None, type=str, help="ckpt path")
     parser.add_argument(
-        "-w", '--workspace', type=int, default=32, help='max workspace size in detect'
+        "-w", '--workspace', type=int, default=32, help="max workspace size in detect"
     )
-    parser.add_argument("-b", '--batch', type=int, default=1, help='max batch size in detect')
-    parser.add_argument("-i", '--inputs', type=str, help='List of input dir for sample inputs.')
+    parser.add_argument("-b", "--batch", type=int, default=1, help="max batch size in detect")
+    parser.add_argument("-s", "--samples", type=str, help="path to sample input directory")
+    parser.add_argument("-i", "--iters", type=int, default=1, help="number of frames for benchmark, rounded up to nearest multiple of batch size")
     return parser
 
 
@@ -103,17 +104,16 @@ def main():
     inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1], dtype=torch.float16, device="cuda:0")]
     while len(inputs) < args.batch:
         inputs.append(inputs[0])
-    if args.inputs is not None:
-        inputs = [prepare_samples(args.inputs, exp.test_size, args.batch)]
+    if args.samples is not None:
+        inputs = [prepare_samples(args.samples, exp.test_size, args.batch)]
 
-    num_samples = args.batch
-    num_iter = 100
+    num_frames = int((((args.iters - 1) // args.batch) + 1) * args.batch)
     start = time.time()
-    for _ in range(num_iter):
+    for _ in range(num_frames // args.batch):
         pred = model(inputs[0])
         # model.head.decode_outputs(pred, dtype=torch.float16, device="cuda:0")
 
-    print("PyTorch model fps (avg of {num} samples): {fps:.1f}".format(num=num_samples * num_iter, fps=(num_samples * num_iter)/(time.time() - start)))
+    print("PyTorch model fps (avg of {num} samples): {fps:.1f}".format(num=num_frames, fps=num_frames/(time.time() - start)))
 
     model_trt = torch2trt(
         model,
@@ -126,10 +126,10 @@ def main():
 
     # model(inputs[0]) # populate model.head
     start = time.time()
-    for _ in range(num_iter):
+    for _ in range(num_frames // args.batch):
         pred = model_trt(inputs[0])
         # model.head.decode_outputs(pred, dtype=torch.float16, device="cuda:0")
-    print("TensorRT model fps (avg of {num} samples): {fps:.1f}".format(num=num_samples * num_iter, fps=(num_samples * num_iter)/(time.time() - start)))
+    print("TensorRT model fps (avg of {num} samples): {fps:.1f}".format(num=num_frames, fps=num_frames/(time.time() - start)))
 
     basename = os.path.basename(args.ckpt)
     components = basename.split(".")[:-1]
