@@ -99,10 +99,18 @@ def main():
 
     num_samples = inputs[0].shape[0]
     num_iter = 150
+    hw = [(80, 80), (40, 40), (20, 20)] # TODO: don't be so hacky
     start = time.time()
     for _ in range(num_iter):
+        res = list()
         for i in range(num_samples):
-            _ = model(inputs[0][i:i+1])
+            pred = model(inputs[0][i:i+1])
+            res.append(pred)
+        model.head.decode_in_inference = True
+        for ele in res:
+            model.head.decode_outputs(ele, hw, dtype=torch.float16, device="cuda:0")
+        model.head.decode_in_inference = False
+
     print("PyTorch model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/(num_samples * num_iter)))
 
     model_trt = torch2trt(
@@ -116,8 +124,14 @@ def main():
 
     start = time.time()
     for _ in range(num_iter):
+        res = list()
         for i in range(num_samples):
-            _ = model_trt(inputs[0][i:i+1])
+            pred = model_trt(inputs[0][i:i+1])
+            res.append(pred)
+        model.head.decode_in_inference = True
+        for ele in res:
+            model.head.decode_outputs(ele, hw, dtype=torch.float16, device="cuda:0")
+        model.head.decode_in_inference = False
     print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_iter))
 
     basename = os.path.basename(args.ckpt)

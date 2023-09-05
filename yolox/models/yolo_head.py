@@ -241,7 +241,7 @@ class YOLOXHead(nn.Module):
         output[..., 2:4] = torch.exp(output[..., 2:4]) * stride
         return output, grid
 
-    def decode_outputs(self, outputs: torch.Tensor, hw: List[Tuple[int, int]], dtype):
+    def decode_outputs(self, outputs: torch.Tensor, hw: List[Tuple[int, int]], dtype, device: str = "cuda:0"):
         grids = []
         strides = []
         for i, stride in enumerate(self.strides):
@@ -253,8 +253,8 @@ class YOLOXHead(nn.Module):
             grids.append(grid)
             strides.append(torch.full((1, hsize * wsize, 1), stride))
 
-        grids = torch.cat(grids, dim=1).type(dtype)
-        strides = torch.cat(strides, dim=1).type(dtype)
+        grids = torch.cat(grids, dim=1).type(dtype).to(device)
+        strides = torch.cat(strides, dim=1).type(dtype).to(device)
 
         outputs = torch.cat([
             (outputs[:, :, 0:2] + grids) * strides,
