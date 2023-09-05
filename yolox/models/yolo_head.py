@@ -248,7 +248,8 @@ class YOLOXHead(nn.Module):
             hsize = hw[i][0]
             wsize = hw[i][1]
             yv, xv = torch.meshgrid(torch.arange(hsize), torch.arange(wsize))
-            grid = torch.stack((xv, yv), 2).view(1, -1, 2)
+            grid = torch.stack((xv, yv), 2)
+            grid = grid.view(1, hsize * wsize, 2)
             grids.append(grid)
             strides.append(torch.full((1, hsize * wsize, 1), stride))
 
@@ -256,9 +257,9 @@ class YOLOXHead(nn.Module):
         strides = torch.cat(strides, dim=1).type(dtype)
 
         outputs = torch.cat([
-            (outputs[..., 0:2] + grids) * strides,
-            torch.exp(outputs[..., 2:4]) * strides,
-            outputs[..., 4:]
+            (outputs[:, :, 0:2] + grids) * strides,
+            torch.exp(outputs[:, :, 2:4]) * strides,
+            outputs[:, :, 4:]
         ], dim=-1)
         return outputs
 

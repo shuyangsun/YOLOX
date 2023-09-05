@@ -46,6 +46,7 @@ def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> torch.Tensor:
             img, _ = preproc(img, input_size)
             img = torch.from_numpy(img).unsqueeze(0).half().to('cuda:0')
             res.append(img)
+            break
     return torch.cat(res)
 
 def make_parser():
@@ -90,7 +91,7 @@ def main():
 
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
-    model.head.decode_in_inference = True
+    model.head.decode_in_inference = False
     model = model.eval().half().to('cuda:0')
     inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1], dtype=torch.float16, device="cuda:0")]
     if args.inputs is not None:
@@ -113,7 +114,7 @@ def main():
 
     start = time.time()
     for i in range(num_samples):
-        _ = model(inputs[0][i:i+1])
+        _ = model_trt(inputs[0][i:i+1])
     print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_samples))
 
     basename = os.path.basename(args.ckpt)
