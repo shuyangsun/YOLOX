@@ -4,15 +4,45 @@
 
 import argparse
 import os
+import cv2
 import shutil
 from loguru import logger
 
 import tensorrt as trt
+import numpy as np
 import torch
 from torch2trt import torch2trt
 
 from yolox.exp import get_exp
+from typing import List, Tuple
 
+def preproc(img, input_size, swap=(2, 0, 1)):
+    if len(img.shape) == 3:
+        padded_img = np.ones((input_size[0], input_size[1], 3), dtype=np.uint8) * 114
+    else:
+        padded_img = np.ones(input_size, dtype=np.uint8) * 114
+
+    r = min(input_size[0] / img.shape[0], input_size[1] / img.shape[1])
+    resized_img = cv2.resize(
+        img,
+        (int(img.shape[1] * r), int(img.shape[0] * r)),
+        interpolation=cv2.INTER_LINEAR,
+    ).astype(np.uint8)
+    padded_img[: int(img.shape[0] * r), : int(img.shape[1] * r)] = resized_img
+
+    padded_img = padded_img.transpose(swap)
+    padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
+    return padded_img, r
+
+def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> List[torch.Tensor]:
+    res: List[torch.Tensor] = list()
+    for root, _, files in os.walk(img_dir):
+        for f in files:
+            img = cv2.imread(os.path.join(root, f))
+            img, _ = preproc(img, input_size)
+            img = torch.from_numpy(img).unsqueeze(0).to('cuda:0')
+            res.append(img)
+    return res
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX ncnn deploy")
@@ -31,6 +61,7 @@ def make_parser():
         "-w", '--workspace', type=int, default=32, help='max workspace size in detect'
     )
     parser.add_argument("-b", '--batch', type=int, default=1, help='max batch size in detect')
+    parser.add_argument("-i", '--inputs', type=str, help='List of input dir for sample inputs.')
     return parser
 
 
@@ -58,10 +89,12 @@ def main():
     model.eval()
     model.cuda()
     model.head.decode_in_inference = False
-    x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
+    inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).to("cuda:0")]
+    if args.inputs is not None:
+        inputs = prepare_samples(args.inputs, exp.test_size)
     model_trt = torch2trt(
         model,
-        [x],
+        inputs,
         fp16_mode=True,
         log_level=trt.Logger.INFO,
         max_workspace_size=(1 << args.workspace),

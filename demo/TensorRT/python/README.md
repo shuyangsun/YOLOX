@@ -12,11 +12,11 @@ YOLOX models can be easily conveted to TensorRT models using torch2trt
 
    If you want to convert our model, use the flag -n to specify a model name:
    ```shell
-   python tools/trt.py -n <YOLOX_MODEL_NAME> -c <YOLOX_CHECKPOINT>
+   python tools/trt.py -n <YOLOX_MODEL_NAME> -c <YOLOX_CHECKPOINT> -i <INPUT_IMG_DIR>
    ```
    For example:
    ```shell
-   python tools/trt.py -n yolox-s -c your_ckpt.pth
+   python tools/trt.py -n yolox-s -c your_ckpt.pth -i /path/to/sample/inputs
    ```
    <YOLOX_MODEL_NAME> can be: yolox-nano, yolox-tiny. yolox-s, yolox-m, yolox-l, yolox-x.
 
