@@ -18,6 +18,8 @@ from typing import List, Tuple
 
 
 class YOLOXHead(nn.Module):
+    hw_: List[Tuple[int, int]]
+
     def __init__(
         self,
         num_classes,
@@ -36,6 +38,7 @@ class YOLOXHead(nn.Module):
 
         self.num_classes = num_classes
         self.decode_in_inference = True  # for deploy, set to False
+        self.hw_: List[Tuple[int, int]] = [(80, 80), (40, 40), (20, 20)]
 
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
@@ -143,11 +146,7 @@ class YOLOXHead(nn.Module):
 
     # def forward(self, xin: torch.Tensor, labels=None, imgs=None):
     def forward(self, xin: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
-        outputs: List[torch.Tensor] = [
-            torch.zeros((1, 85, 80, 80)),
-            torch.zeros((1, 85, 40, 40)),
-            torch.zeros((1, 85, 20, 20)),
-        ]
+        outputs: List[torch.Tensor] = []
         # origin_preds = []
         # x_shifts = []
         # y_shifts = []
@@ -196,7 +195,7 @@ class YOLOXHead(nn.Module):
                 [reg_output, obj_output.sigmoid(), cls_output.sigmoid()], 1
             )
 
-            outputs[k] = output
+            outputs.append(output)
 
         # if self.training:
         #     return self.get_losses(
@@ -212,13 +211,13 @@ class YOLOXHead(nn.Module):
         # else:
 
         # Everything below used to belong to the "else" branch
-        hw: List[Tuple[int, int]] = [(x.shape[-2], x.shape[-1]) for x in outputs]
+        self.hw_ = [(x.shape[-2], x.shape[-1]) for x in outputs]
         # [batch, n_anchors_all, 85]
         outputs_tensor = torch.cat(
             [x.flatten(start_dim=2) for x in outputs], dim=2
         ).permute(0, 2, 1)
         if self.decode_in_inference:
-            return self.decode_outputs(outputs_tensor, hw, dtype=xin[0].type())
+            return self.decode_outputs(outputs_tensor, dtype=xin[0].type())
         return outputs_tensor
 
     def get_output_and_grid(self, output, k: int, stride: int, dtype):
@@ -241,12 +240,13 @@ class YOLOXHead(nn.Module):
         output[..., 2:4] = torch.exp(output[..., 2:4]) * stride
         return output, grid
 
-    def decode_outputs(self, outputs: torch.Tensor, hw: List[Tuple[int, int]], dtype, device: str = "cuda:0"):
+    def decode_outputs(self, outputs: torch.Tensor, dtype, device: str = "cuda:0"):
+        outputs = outputs.to(device)
         grids = []
         strides = []
         for i, stride in enumerate(self.strides):
-            hsize = hw[i][0]
-            wsize = hw[i][1]
+            hsize = self.hw_[i][0]
+            wsize = self.hw_[i][1]
             yv, xv = torch.meshgrid(torch.arange(hsize), torch.arange(wsize))
             grid = torch.stack((xv, yv), 2)
             grid = grid.view(1, hsize * wsize, 2)
@@ -256,11 +256,12 @@ class YOLOXHead(nn.Module):
         grids = torch.cat(grids, dim=1).type(dtype).to(device)
         strides = torch.cat(strides, dim=1).type(dtype).to(device)
 
-        outputs = torch.cat([
-            (outputs[:, :, 0:2] + grids) * strides,
-            torch.exp(outputs[:, :, 2:4]) * strides,
-            outputs[:, :, 4:]
-        ], dim=-1)
+        out1: torch.Tensor = (outputs[..., 0:2] + grids) * strides
+        out2: torch.Tensor = torch.exp(outputs[..., 2:4]) * strides
+        out3: torch.Tensor = outputs[..., 4:]
+        if len(out1.shape) > len(out3.shape):
+            out3 = out3.unsqueeze(0)
+        outputs = torch.cat([out1, out2, out3], dim=-1)
         return outputs
 
     def get_losses(

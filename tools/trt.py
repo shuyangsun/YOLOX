@@ -17,6 +17,8 @@ from torch2trt import torch2trt
 from yolox.exp import get_exp
 from typing import List, Tuple
 
+torch.set_default_device("cuda:0")
+
 def preproc(img, input_size, swap=(2, 0, 1)):
     if len(img.shape) == 3:
         padded_img = np.ones((input_size[0], input_size[1], 3), dtype=np.uint8) * 114
@@ -35,7 +37,7 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
     return padded_img, r
 
-def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> torch.Tensor:
+def prepare_samples(img_dir: str, input_size: Tuple[int, int], num_samples: int) -> torch.Tensor:
     res: List[torch.Tensor] = list()
     for root, _, files in os.walk(img_dir):
         for f in files:
@@ -46,7 +48,12 @@ def prepare_samples(img_dir: str, input_size: Tuple[int, int]) -> torch.Tensor:
             img, _ = preproc(img, input_size)
             img = torch.from_numpy(img).unsqueeze(0).half().to('cuda:0')
             res.append(img)
-            break
+            if len(res) >= num_samples:
+                break
+    i = 0
+    while len(res) < num_samples:
+        res.append(res[i])
+        i += 1
     return torch.cat(res)
 
 def make_parser():
@@ -94,24 +101,19 @@ def main():
     model.head.decode_in_inference = False
     model = model.eval().half().to('cuda:0')
     inputs = [torch.ones(1, 3, exp.test_size[0], exp.test_size[1], dtype=torch.float16, device="cuda:0")]
+    while len(inputs) < args.batch:
+        inputs.append(inputs[0])
     if args.inputs is not None:
-        inputs = [prepare_samples(args.inputs, exp.test_size)]
+        inputs = [prepare_samples(args.inputs, exp.test_size, args.batch)]
 
-    num_samples = inputs[0].shape[0]
-    num_iter = 150
-    hw = [(80, 80), (40, 40), (20, 20)] # TODO: don't be so hacky
+    num_samples = args.batch
+    num_iter = 1000
     start = time.time()
     for _ in range(num_iter):
-        res = list()
-        for i in range(num_samples):
-            pred = model(inputs[0][i:i+1])
-            res.append(pred)
-        model.head.decode_in_inference = True
-        for ele in res:
-            model.head.decode_outputs(ele, hw, dtype=torch.float16, device="cuda:0")
-        model.head.decode_in_inference = False
+        pred = model(inputs[0])
+        # model.head.decode_outputs(pred, dtype=torch.float16, device="cuda:0")
 
-    print("PyTorch model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/(num_samples * num_iter)))
+    print("PyTorch model fps (avg of {num} samples): {fps:.1f}".format(num=num_samples * num_iter, fps=(num_samples * num_iter)/(time.time() - start)))
 
     model_trt = torch2trt(
         model,
@@ -122,21 +124,16 @@ def main():
         max_batch_size=args.batch,
     )
 
+    # model(inputs[0]) # populate model.head
     start = time.time()
     for _ in range(num_iter):
-        res = list()
-        for i in range(num_samples):
-            pred = model_trt(inputs[0][i:i+1])
-            res.append(pred)
-        model.head.decode_in_inference = True
-        for ele in res:
-            model.head.decode_outputs(ele, hw, dtype=torch.float16, device="cuda:0")
-        model.head.decode_in_inference = False
-    print("TensorRT model fps (avg of {num} samples): {fps:.3f}".format(num=num_samples, fps=(time.time() - start)/num_iter))
+        pred = model_trt(inputs[0])
+        # model.head.decode_outputs(pred, dtype=torch.float16, device="cuda:0")
+    print("TensorRT model fps (avg of {num} samples): {fps:.1f}".format(num=num_samples * num_iter, fps=(num_samples * num_iter)/(time.time() - start)))
 
     basename = os.path.basename(args.ckpt)
     components = basename.split(".")[:-1]
-    components[-1] += "_trt"
+    components[-1] += f"_trt_b{args.batch}"
     out_basename = ".".join(components)
 
     torch.save(model_trt.state_dict(), os.path.join(file_name, f"{out_basename}.pth"))
