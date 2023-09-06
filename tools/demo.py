@@ -153,7 +153,7 @@ class Predictor(object):
         img_info["height"] = height
         img_info["width"] = width
 
-        ratio = min(self.test_size[0] / img.shape[0], self.test_size[1] / img.shape[1])
+        ratio = min(self.test_size[0] / height, self.test_size[1] / width)
         img_info["ratio"] = ratio
 
         img, _ = self.preproc(img, None, self.test_size)
