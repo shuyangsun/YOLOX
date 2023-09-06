@@ -165,8 +165,8 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 def preproc_torch(
         img: torch.Tensor,
         input_size: Tuple[int, int],
+        is_half: bool = True,
         swap: Tuple[int, int, int, int]=(0, 3, 1, 2),
-        is_half: bool = True
     ) -> Tuple[torch.Tensor, float]:
     assert len(img.shape) == 4
     height: int = img.shape[1]
@@ -261,14 +261,15 @@ class ValTransform:
         data
     """
 
-    def __init__(self, swap=(2, 0, 1), legacy=False):
+    def __init__(self, swap=(2, 0, 1), legacy=False, is_half=True):
         self.swap = swap
         self.legacy = legacy
+        self.is_half = is_half
 
     # assume input is cv2 img for now
     def __call__(self, img, res, input_size):
         if isinstance(img, torch.Tensor):
-            return preproc_torch(img, input_size)
+            return preproc_torch(img, input_size, self.is_half)
         img, _ = preproc(img, input_size, self.swap)
         if self.legacy:
             img = img[::-1, :, :].copy()
