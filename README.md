@@ -99,6 +99,7 @@ python tools/demo.py image \
   --tsize 640 \
   --device gpu \
   --save_result \
+  --save_media \
   --path /path/to/image.jpg
 ```
 
@@ -115,6 +116,7 @@ python tools/demo.py image \
   --tsize 640 \
   --device gpu \
   --save_result \
+  --save_media \
   --path /path/to/image.jpg
 ```
 
@@ -127,6 +129,25 @@ python tools/demo.py video \
   --trt /path/to/yolox_l_trt_b128.pth \
   --fp16 \
   --conf 0.25 \
+  --nms 0.45 \
+  --tsize 640 \
+  --device gpu \
+  --save_result \
+  --save_media \
+  --batch 128 \
+  --fps 15 \
+  --path /path/to/video.mp4
+```
+
+Store all top-1 predictions for video:
+
+```shell
+python tools/demo.py video \
+  -f exps/default/yolox_l.py \
+  -c /path/to/yolox_l.pth \
+  --trt /path/to/yolox_l_trt_b128.pth \
+  --fp16 \
+  --conf 0.0 \
   --nms 0.45 \
   --tsize 640 \
   --device gpu \
