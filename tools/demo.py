@@ -316,8 +316,9 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         base_names.append("npy")
         if args.compress:
             lzc = lzma.LZMACompressor()
-            lzc.compress(data)
-            data = lzc.flush()
+            out1: bytes = lzc.compress(data)
+            out2: bytes = lzc.flush()
+            data = b"".join([out1, out2])
             base_names.append("lzma")
         out_basename = ".".join(base_names)
         res_path = os.path.join(save_folder, out_basename)
