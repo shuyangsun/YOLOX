@@ -280,7 +280,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
                 except Exception:
                     pass
             if (frame_cnt - j) % 1024 == 0:
-                print(f"{time.time()}: processed frame {frame_cnt - j}")
+                time_fmt = "%Y-%m-%dT%H:%M:%S"
+                print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt - j}")
 
 def main(exp, args):
     if not args.experiment_name:
