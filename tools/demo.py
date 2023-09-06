@@ -16,6 +16,8 @@ from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
 from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
+from typing import List
+
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 
@@ -88,6 +90,12 @@ def make_parser():
         type=int,
         help="FPS of output video.",
     )
+    parser.add_argument(
+        "--batch",
+        default=1,
+        type=int,
+        help="Batch inference size.",
+    )
     return parser
 
 
@@ -131,27 +139,26 @@ class Predictor(object):
             model_trt.load_state_dict(torch.load(trt_file))
 
             x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
+            if self.fp16:
+                x = x.half()
             self.model(x)
             self.model = model_trt
 
     def inference(self, img):
         img_info = {"id": 0}
-        if isinstance(img, str):
-            img_info["file_name"] = os.path.basename(img)
-            img = cv2.imread(img)
-        else:
-            img_info["file_name"] = None
 
         height, width = img.shape[:2]
+        if len(img.shape) == 4:
+            height, width = img.shape[1:3]
         img_info["height"] = height
         img_info["width"] = width
-        img_info["raw_img"] = img
 
         ratio = min(self.test_size[0] / img.shape[0], self.test_size[1] / img.shape[1])
         img_info["ratio"] = ratio
 
         img, _ = self.preproc(img, None, self.test_size)
-        img = torch.from_numpy(img).unsqueeze(0)
+        if not isinstance(img, torch.Tensor):
+            img = torch.from_numpy(img).unsqueeze(0)
         img = img.float()
         if self.device == "gpu":
             img = img.cuda()
@@ -159,7 +166,6 @@ class Predictor(object):
                 img = img.half()  # to FP16
 
         with torch.no_grad():
-            t0 = time.time()
             outputs = self.model(img)
             if self.decoder is not None:
                 outputs = self.decoder(outputs, dtype=outputs.type())
@@ -167,12 +173,10 @@ class Predictor(object):
                 outputs, self.num_classes, self.confthre,
                 self.nmsthre, class_agnostic=True
             )
-            logger.info("Infer time: {:.4f}s".format(time.time() - t0))
         return outputs, img_info
 
-    def visual(self, output, img_info, cls_conf=0.35):
+    def visual(self, output, img, img_info, cls_conf=0.35):
         ratio = img_info["ratio"]
-        img = img_info["raw_img"]
         if output is None:
             return img
         output = output.cpu()
@@ -196,10 +200,11 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         files = [path]
     files.sort()
     for image_name in files:
-        outputs, img_info = predictor.inference(image_name)
+        img = cv2.imread(image_name)
+        outputs, img_info = predictor.inference(img)
         if len(outputs) <= 0:
             continue
-        result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
+        result_image = predictor.visual(outputs[0], img, img_info, predictor.confthre)
         if save_result:
             save_folder = os.path.join(
                 vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
@@ -232,17 +237,38 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
         )
     while True:
-        ret_val, frame = cap.read()
+        buf: List[torch.Tensor] = list()
+        ret_val = True
+        i = 0
+        while ret_val and i < args.batch:
+            ret_val, frame = cap.read()
+            if ret_val:
+                buf.append(torch.from_numpy(frame).unsqueeze(0))
+            i += 1
+        if len(buf) <= 0:
+            break
+        frame_batch = torch.cat(buf, dim=0)
+        if frame_batch.shape[0] < args.batch:
+            frame_batch = torch.cat([frame_batch, torch.zeros((
+                args.batch - frame_batch.shape[0],
+                frame_batch.shape[1],
+                frame_batch.shape[2],
+                frame_batch.shape[3],
+            ))], dim=0)
+        frame_batch = frame_batch.to(f"cuda:{torch.cuda.current_device()}")
         if ret_val:
-            outputs, img_info = predictor.inference(frame)
-            if len(outputs) <= 0:
-                continue
-            result_frame = predictor.visual(outputs[0], img_info, predictor.confthre)
-            if args.save_result:
-                vid_writer.write(result_frame)
-            else:
-                cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
-                cv2.imshow("yolox", result_frame)
+            outputs, img_info = predictor.inference(frame_batch)
+            for i, cur_output in enumerate(outputs):
+                if i >= len(buf):
+                    break
+                if len(cur_output) <= 0:
+                    continue
+                result_frame = predictor.visual(cur_output, frame_batch[i], img_info, predictor.confthre)
+                if args.save_result:
+                    vid_writer.write(result_frame)
+                else:
+                    cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
+                    cv2.imshow("yolox", result_frame)
             ch = cv2.waitKey(1)
             if ch == 27 or ch == ord("q") or ch == ord("Q"):
                 break

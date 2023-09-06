@@ -3,12 +3,15 @@
 # Copyright (c) Megvii Inc. All rights reserved.
 
 import cv2
+import torch
 import numpy as np
 
 __all__ = ["vis"]
 
 
 def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):
+    if isinstance(img, torch.Tensor):
+        img = img.cpu().numpy()
 
     for i in range(len(boxes)):
         box = boxes[i]

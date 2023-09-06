@@ -89,17 +89,52 @@ Step1. Download a pretrained model from the benchmark table.
 Step2. Use either -n or -f to specify your detector's config. For example:
 
 ```shell
-python tools/demo.py image -n yolox-s -c /path/to/your/yolox_s.pth --path assets/dog.jpg --conf 0.25 --nms 0.45 --tsize 640 --save_result --device [cpu/gpu]
-```
-or
-```shell
-python tools/demo.py image -f exps/default/yolox_s.py -c /path/to/your/yolox_s.pth --path assets/dog.jpg --conf 0.25 --nms 0.45 --tsize 640 --save_result --device [cpu/gpu]
-```
-Demo for video:
-```shell
-python tools/demo.py video -n yolox-s -c /path/to/your/yolox_s.pth --path /path/to/your/video --conf 0.25 --nms 0.45 --tsize 640 --save_result --device [cpu/gpu]
+python tools/demo.py image \
+  -n yolox-l \
+  -c /path/to/yolox_l.pth \
+  --trt /path/to/yolox_l_trt_b1.pth \
+  --fp16 \
+  --conf 0.25 \
+  --nms 0.45 \
+  --tsize 640 \
+  --device gpu \
+  --save_result \
+  --path /path/to/image.jpg
 ```
 
+or
+
+```shell
+python tools/demo.py image \
+  -f exps/default/yolox_l.py \
+  -c /path/to/yolox_l.pth \
+  --trt /path/to/yolox_l_trt_b1.pth \
+  --fp16 \
+  --conf 0.25 \
+  --nms 0.45 \
+  --tsize 640 \
+  --device gpu \
+  --save_result \
+  --path /path/to/image.jpg
+```
+
+Demo for video:
+
+```shell
+python tools/demo.py video \
+  -f exps/default/yolox_l.py \
+  -c /path/to/yolox_l.pth \
+  --trt /path/to/yolox_l_trt_b128.pth \
+  --fp16 \
+  --conf 0.25 \
+  --nms 0.45 \
+  --tsize 640 \
+  --device gpu \
+  --save_result \
+  --batch 128 \
+  --fps 15 \
+  --path /path/to/video.mp4
+```
 
 </details>
 

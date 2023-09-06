@@ -13,9 +13,14 @@ import math
 import random
 
 import cv2
+import torch
+from torchvision.transforms import Resize
+from torchvision.transforms import InterpolationMode
 import numpy as np
 
 from yolox.utils import xyxy2cxcywh
+
+from typing import Tuple
 
 
 def augment_hsv(img, hgain=5, sgain=30, vgain=30):
@@ -157,6 +162,34 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
     return padded_img, r
 
+def preproc_torch(
+        img: torch.Tensor,
+        input_size: Tuple[int, int],
+        swap: Tuple[int, int, int, int]=(0, 3, 1, 2),
+        is_half: bool = True
+    ) -> Tuple[torch.Tensor, float]:
+    assert len(img.shape) == 4
+    height: int = img.shape[1]
+    width: int = img.shape[2]
+    r = min(input_size[0] / height, input_size[1] / width)
+    img = torch.permute(img, swap)
+    resize_fn = Resize(
+        size=(int(height * r), int(width * r)),
+        interpolation=InterpolationMode.BILINEAR,
+        antialias=None
+    )
+
+    padded_img = torch.ones((img.shape[0], 3, input_size[0], input_size[1]), dtype=torch.uint8) * 114
+    resized_img = resize_fn(img)
+    padded_img[:, :, : int(height * r), : int(width * r)] = resized_img
+    padded_img = padded_img.contiguous()
+
+    if is_half:
+        padded_img = padded_img.half()
+    else:
+        padded_img = padded_img.float()
+    return padded_img, r
+
 
 class TrainTransform:
     def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0):
@@ -234,6 +267,8 @@ class ValTransform:
 
     # assume input is cv2 img for now
     def __call__(self, img, res, input_size):
+        if isinstance(img, torch.Tensor):
+            return preproc_torch(img, input_size)
         img, _ = preproc(img, input_size, self.swap)
         if self.legacy:
             img = img[::-1, :, :].copy()
