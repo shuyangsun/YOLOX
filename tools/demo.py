@@ -5,6 +5,9 @@
 import argparse
 import os
 import time
+import pickle
+import lzma
+import numpy as np
 from loguru import logger
 
 import cv2
@@ -247,6 +250,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
                 save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
             )
     frame_cnt = 0
+    num_output_floats: int = 0
+    all_outputs: List[torch.Tesnor] = []
     while True:
         buf: List[torch.Tensor] = list()
         ret_val = True
@@ -255,8 +260,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             ret_val, frame = cap.read()
             if ret_val:
                 buf.append(torch.from_numpy(frame).unsqueeze(0))
-            i += 1
-            frame_cnt += 1
+                i += 1
+                frame_cnt += 1
         if len(buf) <= 0:
             break
         frame_batch = torch.cat(buf, dim=0)
@@ -271,8 +276,10 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         outputs, img_info = predictor.inference(frame_batch)
         outputs = outputs[:len(buf)]
         for j, cur_output in enumerate(outputs):
+            all_outputs.append(cur_output)
             if len(cur_output) <= 0:
                 continue
+            num_output_floats += torch.numel(cur_output)
             if vid_writer is not None:
                 result_frame = predictor.visual(cur_output, frame_batch[j], img_info, predictor.confthre)
                 try:
@@ -283,6 +290,23 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         if frame_cnt % batch_step == 0:
             time_fmt = "%Y-%m-%dT%H:%M:%S"
             print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt}")
+    print(f"Number of floats in outputs: {num_output_floats}")
+    all_outputs_np: List[np.ndarray] = [ele.cpu().half().numpy() for ele in all_outputs]
+    assert frame_cnt == len(all_outputs_np)
+    if args.save_result:
+        data: bytes = pickle.dumps(all_outputs_np)
+        lzc = lzma.LZMACompressor()
+        lzc.compress(data)
+        compressed: bytes = lzc.flush()
+        base_names: List[str] = os.path.basename(args.path).split(".")
+        if len(base_names) > 1:
+            base_names = base_names[:-1]
+        base_names[-1] += "_pred"
+        base_names.append("npy")
+        out_basename = ".".join(base_names)
+        res_path = os.path.join(save_folder, out_basename)
+        with open(res_path, "wb") as outfile:
+            outfile.write(compressed)
 
 def main(exp, args):
     if not args.experiment_name:
