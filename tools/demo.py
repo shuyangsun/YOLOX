@@ -279,9 +279,10 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
                     vid_writer.write(result_frame)
                 except Exception:
                     pass
-            if (frame_cnt - j) % 1024 == 0:
-                time_fmt = "%Y-%m-%dT%H:%M:%S"
-                print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt - j}")
+        batch_step = ((1023 // args.batch) + 1) * args.batch
+        if frame_cnt % batch_step == 0:
+            time_fmt = "%Y-%m-%dT%H:%M:%S"
+            print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt}")
 
 def main(exp, args):
     if not args.experiment_name:
