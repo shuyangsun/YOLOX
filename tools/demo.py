@@ -74,6 +74,12 @@ def make_parser():
         help="Adopting mix precision evaluating.",
     )
     parser.add_argument(
+        "--compress",
+        default=False,
+        action="store_true",
+        help="whether or not to compress prediction output file",
+    )
+    parser.add_argument(
         "--legacy",
         dest="legacy",
         default=False,
@@ -303,18 +309,20 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     assert frame_cnt == len(all_outputs_np)
     if args.save_result:
         data: bytes = pickle.dumps(all_outputs_np)
-        lzc = lzma.LZMACompressor()
-        lzc.compress(data)
-        compressed: bytes = lzc.flush()
         base_names: List[str] = os.path.basename(args.path).split(".")
         if len(base_names) > 1:
             base_names = base_names[:-1]
         base_names[-1] += "_pred"
-        base_names += ["npy", "lzma"]
+        base_names.append("npy")
+        if args.compress:
+            lzc = lzma.LZMACompressor()
+            lzc.compress(data)
+            data = lzc.flush()
+            base_names.append("lzma")
         out_basename = ".".join(base_names)
         res_path = os.path.join(save_folder, out_basename)
         with open(res_path, "wb") as outfile:
-            outfile.write(compressed)
+            outfile.write(data)
 
 def main(exp, args):
     if not args.experiment_name:
