@@ -299,7 +299,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             time_fmt = "%Y-%m-%dT%H:%M:%S"
             print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt}")
     print(f"Number of floats in outputs: {num_output_floats}")
-    all_outputs_np: List[np.ndarray] = [ele.cpu().half().numpy() for ele in all_outputs]
+    all_outputs_np: List[np.ndarray] = [ele.float().cpu().numpy() for ele in all_outputs]
     assert frame_cnt == len(all_outputs_np)
     if args.save_result:
         data: bytes = pickle.dumps(all_outputs_np)
