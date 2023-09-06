@@ -273,8 +273,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         for j, cur_output in enumerate(outputs):
             if len(cur_output) <= 0:
                 continue
-            result_frame = predictor.visual(cur_output, frame_batch[j], img_info, predictor.confthre)
             if vid_writer is not None:
+                result_frame = predictor.visual(cur_output, frame_batch[j], img_info, predictor.confthre)
                 try:
                     vid_writer.write(result_frame)
                 except Exception:
