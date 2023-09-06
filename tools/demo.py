@@ -201,11 +201,10 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
     files.sort()
     for image_name in files:
         img = cv2.imread(image_name)
-        img = torch.from_numpy(img).unsqueeze(0).cuda().half()
-        outputs, img_info = predictor.inference(img)
+        img_tensor = torch.from_numpy(img).unsqueeze(0).cuda().half()
+        outputs, img_info = predictor.inference(img_tensor)
         if len(outputs) <= 0:
             continue
-        img = img[0]
         result_image = predictor.visual(outputs[0], img, img_info, predictor.confthre)
         if save_result:
             save_folder = os.path.join(
