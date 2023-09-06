@@ -111,6 +111,11 @@ def make_parser():
         type=int,
         help="Batch inference size.",
     )
+    parser.add_argument(
+        "--out_postfix",
+        type=str,
+        help="postfix of output file basename",
+    )
     return parser
 
 
@@ -312,7 +317,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         base_names: List[str] = os.path.basename(args.path).split(".")
         if len(base_names) > 1:
             base_names = base_names[:-1]
-        base_names[-1] += "_pred"
+        if args.out_postfix:
+            base_names[0] += f"_{args.out_postfix}"
         base_names.append("npy")
         if args.compress:
             lzc = lzma.LZMACompressor()
