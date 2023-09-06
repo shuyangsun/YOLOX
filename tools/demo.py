@@ -185,18 +185,18 @@ class Predictor(object):
         return outputs, img_info
 
     def visual(self, output, img, img_info, cls_conf=0.35):
-        ratio = img_info["ratio"]
         if output is None:
             return img
         output = output.cpu()
 
         bboxes = output[:, 0:4]
+        scores = output[:, 4]
+        cls = output[:, 5]
 
-        # preprocessing: resize
-        bboxes /= ratio
-
-        cls = output[:, 6]
-        scores = output[:, 4] * output[:, 5]
+        bboxes[:, 0] *= img_info["width"]
+        bboxes[:, 1] *= img_info["height"]
+        bboxes[:, 2] *= img_info["width"]
+        bboxes[:, 3] *= img_info["height"]
 
         vis_res = vis(img, bboxes, scores, cls, cls_conf, self.cls_names)
         return vis_res
@@ -276,6 +276,14 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         outputs, img_info = predictor.inference(frame_batch)
         outputs = outputs[:len(buf)]
         for j, cur_output in enumerate(outputs):
+            cur_output[:, :4] /= img_info["ratio"] # scale boxes by ratio
+            cur_output[:, 4] *= cur_output[:, 5] # calculate scores
+            cur_output[:, 5] = cur_output[:, 6] # move pred cls left one column
+            cur_output = cur_output[:, :6] # remove last column
+            cur_output[:, 0] /= img_info["width"] # Change x-axis top-left anchor to ratio
+            cur_output[:, 1] /= img_info["height"] # Change y-axis top-left anchor to ratio
+            cur_output[:, 2] /= img_info["width"] # Change width to ratio
+            cur_output[:, 3] /= img_info["height"] # Change height to ratio
             all_outputs.append(cur_output)
             if len(cur_output) <= 0:
                 continue
