@@ -310,7 +310,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         if len(base_names) > 1:
             base_names = base_names[:-1]
         base_names[-1] += "_pred"
-        base_names.append("npy")
+        base_names += ["npy", "lzma"]
         out_basename = ".".join(base_names)
         res_path = os.path.join(save_folder, out_basename)
         with open(res_path, "wb") as outfile:
