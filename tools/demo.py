@@ -290,7 +290,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             cur_output[:, 1] /= img_info["height"] # Change y-axis top-left anchor to ratio
             cur_output[:, 2] /= img_info["width"] # Change width to ratio
             cur_output[:, 3] /= img_info["height"] # Change height to ratio
-            all_outputs.append(cur_output)
+            if args.save_result:
+                all_outputs.append(cur_output.cpu().half().numpy())
             if len(cur_output) <= 0:
                 continue
             num_output_floats += torch.numel(cur_output)
@@ -305,10 +306,9 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             time_fmt = "%Y-%m-%dT%H:%M:%S"
             print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt}")
     print(f"Number of floats in outputs: {num_output_floats}")
-    all_outputs_np: List[np.ndarray] = [ele.cpu().half().numpy() for ele in all_outputs]
-    assert frame_cnt == len(all_outputs_np)
+    assert frame_cnt == len(all_outputs)
     if args.save_result:
-        data: bytes = pickle.dumps(all_outputs_np)
+        data: bytes = pickle.dumps(all_outputs)
         base_names: List[str] = os.path.basename(args.path).split(".")
         if len(base_names) > 1:
             base_names = base_names[:-1]
