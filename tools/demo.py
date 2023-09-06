@@ -79,9 +79,8 @@ def make_parser():
     parser.add_argument(
         "--trt",
         dest="trt",
-        default=False,
-        action="store_true",
-        help="Using TensorRT model for testing.",
+        type=str,
+        help="Path to TensorRT model",
     )
     return parser
 
@@ -295,19 +294,17 @@ def main(exp, args):
 
     if args.trt:
         assert not args.fuse, "TensorRT model is not support model fusing!"
-        trt_file = os.path.join(file_name, "model_trt.pth")
         assert os.path.exists(
-            trt_file
+            args.trt
         ), "TensorRT model is not found!\n Run python3 tools/trt.py first!"
         model.head.decode_in_inference = False
         decoder = model.head.decode_outputs
         logger.info("Using TensorRT to inference")
     else:
-        trt_file = None
         decoder = None
 
     predictor = Predictor(
-        model, exp, COCO_CLASSES, trt_file, decoder,
+        model, exp, COCO_CLASSES, args.trt, decoder,
         args.device, args.fp16, args.legacy,
     )
     current_time = time.localtime()
