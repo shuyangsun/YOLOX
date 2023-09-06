@@ -82,6 +82,12 @@ def make_parser():
         type=str,
         help="Path to TensorRT model",
     )
+    parser.add_argument(
+        "--fps",
+        default=15,
+        type=int,
+        help="FPS of output video.",
+    )
     return parser
 
 
@@ -211,7 +217,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     cap = cv2.VideoCapture(args.path if args.demo == "video" else args.camid)
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    fps = args.fps if args.demo == "video" else cap.get(cv2.CAP_PROP_FPS)
     if args.save_result:
         save_folder = os.path.join(
             vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
