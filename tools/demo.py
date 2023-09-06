@@ -38,6 +38,12 @@ def make_parser():
         action="store_true",
         help="whether to save the inference result of image/video",
     )
+    parser.add_argument(
+        "--save_media",
+        default=False,
+        action="store_true",
+        help="whether to save the inference visual result of image/video",
+    )
 
     # exp file
     parser.add_argument(
@@ -193,7 +199,7 @@ class Predictor(object):
         return vis_res
 
 
-def image_demo(predictor, vis_folder, path, current_time, save_result):
+def image_demo(predictor, vis_folder, path, current_time, args):
     if os.path.isdir(path):
         files = get_image_list(path)
     else:
@@ -206,14 +212,15 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         if len(outputs) <= 0:
             continue
         result_image = predictor.visual(outputs[0], img, img_info, predictor.confthre)
-        if save_result:
+        if args.save_media or args.save_result:
             save_folder = os.path.join(
                 vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
             )
             os.makedirs(save_folder, exist_ok=True)
             save_file_name = os.path.join(save_folder, os.path.basename(image_name))
             logger.info("Saving detection result in {}".format(save_file_name))
-            cv2.imwrite(save_file_name, result_image)
+            if args.save_media:
+                cv2.imwrite(save_file_name, result_image)
         ch = cv2.waitKey(0)
         if ch == 27 or ch == ord("q") or ch == ord("Q"):
             break
@@ -224,7 +231,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
     fps = args.fps if args.demo == "video" else cap.get(cv2.CAP_PROP_FPS)
-    if args.save_result:
+    vid_writer = None
+    if args.save_media or args.save_result:
         save_folder = os.path.join(
             vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
         )
@@ -233,10 +241,12 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             save_path = os.path.join(save_folder, os.path.basename(args.path))
         else:
             save_path = os.path.join(save_folder, "camera.mp4")
-        logger.info(f"video save_path is {save_path}")
-        vid_writer = cv2.VideoWriter(
-            save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
-        )
+        if args.save_media:
+            logger.info(f"video save_path is {save_path}")
+            vid_writer = cv2.VideoWriter(
+                save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
+            )
+    frame_cnt = 0
     while True:
         buf: List[torch.Tensor] = list()
         ret_val = True
@@ -246,6 +256,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             if ret_val:
                 buf.append(torch.from_numpy(frame).unsqueeze(0))
             i += 1
+            frame_cnt += 1
         if len(buf) <= 0:
             break
         frame_batch = torch.cat(buf, dim=0)
@@ -257,25 +268,19 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
                 frame_batch.shape[3],
             ))], dim=0)
         frame_batch = frame_batch.to(f"cuda:{torch.cuda.current_device()}")
-        if ret_val:
-            outputs, img_info = predictor.inference(frame_batch)
-            for i, cur_output in enumerate(outputs):
-                if i >= len(buf):
-                    break
-                if len(cur_output) <= 0:
-                    continue
-                result_frame = predictor.visual(cur_output, frame_batch[i], img_info, predictor.confthre)
-                if args.save_result:
+        outputs, img_info = predictor.inference(frame_batch)
+        outputs = outputs[:len(buf)]
+        for j, cur_output in enumerate(outputs):
+            if len(cur_output) <= 0:
+                continue
+            result_frame = predictor.visual(cur_output, frame_batch[j], img_info, predictor.confthre)
+            if vid_writer is not None:
+                try:
                     vid_writer.write(result_frame)
-                else:
-                    cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
-                    cv2.imshow("yolox", result_frame)
-            ch = cv2.waitKey(1)
-            if ch == 27 or ch == ord("q") or ch == ord("Q"):
-                break
-        else:
-            break
-
+                except Exception:
+                    pass
+            if (frame_cnt - j) % 1024 == 0:
+                print(f"{time.time()}: processed frame {frame_cnt - j}")
 
 def main(exp, args):
     if not args.experiment_name:
@@ -285,7 +290,7 @@ def main(exp, args):
     os.makedirs(file_name, exist_ok=True)
 
     vis_folder = None
-    if args.save_result:
+    if args.save_result or args.save_media:
         vis_folder = os.path.join(file_name, "vis_res")
         os.makedirs(vis_folder, exist_ok=True)
 
@@ -342,7 +347,7 @@ def main(exp, args):
     )
     current_time = time.localtime()
     if args.demo == "image":
-        image_demo(predictor, vis_folder, args.path, current_time, args.save_result)
+        image_demo(predictor, vis_folder, args.path, current_time, args)
     elif args.demo == "video" or args.demo == "webcam":
         imageflow_demo(predictor, vis_folder, current_time, args)
 
