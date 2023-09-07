@@ -319,7 +319,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             base_names = base_names[:-1]
         if args.out_postfix:
             base_names[0] += f"_{args.out_postfix}"
-        base_names.append("npy")
+        base_names.append("pkl")
         if args.compress:
             lzc = lzma.LZMACompressor()
             out1: bytes = lzc.compress(data)
