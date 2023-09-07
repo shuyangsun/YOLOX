@@ -142,8 +142,9 @@ python tools/demo.py video \
 Store all top-1 predictions for video:
 
 ```shell
-python tools/demo.py video \
-  -f exps/default/yolox_l.py \
+date \
+  && python tools/demo.py video \
+  -n yolox-x \
   -c /path/to/yolox_l.pth \
   --trt /path/to/yolox_l_trt_b128.pth \
   --fp16 \
@@ -152,9 +153,12 @@ python tools/demo.py video \
   --tsize 640 \
   --device gpu \
   --save_result \
+  --compress \
   --batch 128 \
+  --out_postfix 'yolox_x' \
   --fps 15 \
-  --path /path/to/video.mp4
+  --path /home/ssun/developer/mldata/pedestrian/videos-4-21/01_20230420080002.mp4 \
+  && date
 ```
 
 </details>
