@@ -10,6 +10,7 @@ ninja
 tabulate
 psutil
 tensorboard
+protobuf==3.20.2
 
 # verified versions
 # pycocotools corresponds to https://github.com/ppwwyyxx/cocoapi

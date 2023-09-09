@@ -4,8 +4,8 @@
 
 import argparse
 import os
-import time
 import pickle
+import time
 import lzma
 import numpy as np
 from loguru import logger
@@ -190,8 +190,11 @@ class Predictor(object):
             if self.decoder is not None:
                 outputs = self.decoder(outputs, dtype=outputs.type())
             outputs = postprocess(
-                outputs, self.num_classes, self.confthre,
-                self.nmsthre, class_agnostic=True
+                outputs,
+                self.num_classes,
+                self.confthre,
+                self.nmsthre,
+                class_agnostic=True,
             )
         return outputs, img_info
 
@@ -258,7 +261,10 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         if args.save_media:
             logger.info(f"video save_path is {save_path}")
             vid_writer = cv2.VideoWriter(
-                save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
+                save_path,
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                fps,
+                (int(width), int(height)),
             )
     frame_cnt = 0
     num_output_floats: int = 0
@@ -277,31 +283,45 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             break
         frame_batch = torch.cat(buf, dim=0)
         if frame_batch.shape[0] < args.batch:
-            frame_batch = torch.cat([frame_batch, torch.zeros((
-                args.batch - frame_batch.shape[0],
-                frame_batch.shape[1],
-                frame_batch.shape[2],
-                frame_batch.shape[3],
-            ))], dim=0)
+            frame_batch = torch.cat(
+                [
+                    frame_batch,
+                    torch.zeros(
+                        (
+                            args.batch - frame_batch.shape[0],
+                            frame_batch.shape[1],
+                            frame_batch.shape[2],
+                            frame_batch.shape[3],
+                        )
+                    ),
+                ],
+                dim=0,
+            )
         frame_batch = frame_batch.to(f"cuda:{torch.cuda.current_device()}")
         outputs, img_info = predictor.inference(frame_batch)
-        outputs = outputs[:len(buf)]
+        outputs = outputs[: len(buf)]
         for j, cur_output in enumerate(outputs):
-            cur_output[:, :4] /= img_info["ratio"] # scale boxes by ratio
-            cur_output[:, 4] *= cur_output[:, 5] # calculate scores
-            cur_output[:, 5] = cur_output[:, 6] # move pred cls left one column
-            cur_output = cur_output[:, :6] # remove last column
-            cur_output[:, 0] /= img_info["width"] # Change x-axis top-left anchor to ratio
-            cur_output[:, 1] /= img_info["height"] # Change y-axis top-left anchor to ratio
-            cur_output[:, 2] /= img_info["width"] # Change width to ratio
-            cur_output[:, 3] /= img_info["height"] # Change height to ratio
+            cur_output[:, :4] /= img_info["ratio"]  # scale boxes by ratio
+            cur_output[:, 4] *= cur_output[:, 5]  # calculate scores
+            cur_output[:, 5] = cur_output[:, 6]  # move pred cls left one column
+            cur_output = cur_output[:, :6]  # remove last column
+            cur_output[:, 0] /= img_info[
+                "width"
+            ]  # Change x-axis top-left anchor to ratio
+            cur_output[:, 1] /= img_info[
+                "height"
+            ]  # Change y-axis top-left anchor to ratio
+            cur_output[:, 2] /= img_info["width"]  # Change width to ratio
+            cur_output[:, 3] /= img_info["height"]  # Change height to ratio
             if args.save_result:
                 all_outputs.append(cur_output.cpu().half().numpy())
             if len(cur_output) <= 0:
                 continue
             num_output_floats += torch.numel(cur_output)
             if vid_writer is not None:
-                result_frame = predictor.visual(cur_output, frame_batch[j], img_info, predictor.confthre)
+                result_frame = predictor.visual(
+                    cur_output, frame_batch[j], img_info, predictor.confthre
+                )
                 try:
                     vid_writer.write(result_frame)
                 except Exception:
@@ -309,9 +329,12 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         batch_step = ((1023 // args.batch) + 1) * args.batch
         if frame_cnt % batch_step == 0:
             time_fmt = "%Y-%m-%dT%H:%M:%S"
-            print(f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt}")
+            print(
+                f"{time.strftime(time_fmt, time.localtime())}: processed frame {frame_cnt}"
+            )
     print(f"Number of floats in outputs: {num_output_floats}")
-    assert frame_cnt == len(all_outputs)
+    if args.save_result:
+        assert frame_cnt == len(all_outputs)
     if args.save_result:
         data: bytes = pickle.dumps(all_outputs)
         base_names: List[str] = os.path.basename(args.path).split(".")
@@ -330,6 +353,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         res_path = os.path.join(save_folder, out_basename)
         with open(res_path, "wb") as outfile:
             outfile.write(data)
+
 
 def main(exp, args):
     if not args.experiment_name:
@@ -391,8 +415,14 @@ def main(exp, args):
         decoder = None
 
     predictor = Predictor(
-        model, exp, COCO_CLASSES, args.trt, decoder,
-        args.device, args.fp16, args.legacy,
+        model,
+        exp,
+        COCO_CLASSES,
+        args.trt,
+        decoder,
+        args.device,
+        args.fp16,
+        args.legacy,
     )
     current_time = time.localtime()
     if args.demo == "image":
