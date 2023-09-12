@@ -17,6 +17,6 @@ load("@rules_python//python:repositories.bzl", "py_repositories")
 py_repositories()
 
 local_repository(
-    name = "ssml_dataproto",
-    path = "../ssml_dataproto",
+    name = "ssml_datautil_py",
+    path = "../ssml_datautil_py",
 )

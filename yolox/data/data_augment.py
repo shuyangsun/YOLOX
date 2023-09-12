@@ -33,7 +33,9 @@ def augment_hsv(img, hgain=5, sgain=30, vgain=30):
     img_hsv[..., 1] = np.clip(img_hsv[..., 1] + hsv_augs[1], 0, 255)
     img_hsv[..., 2] = np.clip(img_hsv[..., 2] + hsv_augs[2], 0, 255)
 
-    cv2.cvtColor(img_hsv.astype(img.dtype), cv2.COLOR_HSV2BGR, dst=img)  # no return needed
+    cv2.cvtColor(
+        img_hsv.astype(img.dtype), cv2.COLOR_HSV2BGR, dst=img
+    )  # no return needed
 
 
 def get_aug_params(value, center=0):
@@ -44,7 +46,9 @@ def get_aug_params(value, center=0):
     else:
         raise ValueError(
             "Affine params should be either a sequence containing two values\
-             or single float values. Got {}".format(value)
+             or single float values. Got {}".format(
+                value
+            )
         )
 
 
@@ -162,12 +166,13 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
     return padded_img, r
 
+
 def preproc_torch(
-        img: torch.Tensor,
-        input_size: Tuple[int, int],
-        is_half: bool = True,
-        swap: Tuple[int, int, int, int]=(0, 3, 1, 2),
-    ) -> Tuple[torch.Tensor, float]:
+    img: torch.Tensor,
+    input_size: Tuple[int, int],
+    is_half: bool = True,
+    swap: Tuple[int, int, int, int] = (0, 3, 1, 2),
+) -> Tuple[torch.Tensor, float]:
     assert len(img.shape) == 4
     height: int = img.shape[1]
     width: int = img.shape[2]
@@ -176,10 +181,13 @@ def preproc_torch(
     resize_fn = Resize(
         size=(int(height * r), int(width * r)),
         interpolation=InterpolationMode.BILINEAR,
-        antialias=None
+        antialias=None,
     )
 
-    padded_img = torch.ones((img.shape[0], 3, input_size[0], input_size[1]), dtype=torch.uint8) * 114
+    padded_img = (
+        torch.ones((img.shape[0], 3, input_size[0], input_size[1]), dtype=torch.uint8)
+        * 114
+    )
     resized_img = resize_fn(img)
     padded_img[:, :, : int(height * r), : int(width * r)] = resized_img
     padded_img = padded_img.contiguous()
