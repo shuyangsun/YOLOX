@@ -144,7 +144,7 @@ Store all top-1 predictions for video:
 ```shell
 date \
   && python tools/demo.py video \
-  -n yolox-x \
+  -n yolox-l \
   -c /path/to/yolox_l.pth \
   --trt /path/to/yolox_l_trt_b128.pth \
   --fp16 \
@@ -155,7 +155,7 @@ date \
   --save_result \
   --compress \
   --batch 128 \
-  --out_postfix 'yolox_x' \
+  --out_postfix 'yolox_l' \
   --fps 15 \
   --path /path/to/video.mp4 \
   && date
