@@ -157,7 +157,7 @@ date \
   --batch 128 \
   --out_postfix 'yolox_x' \
   --fps 15 \
-  --path /home/ssun/developer/mldata/pedestrian/videos-4-21/01_20230420080002.mp4 \
+  --path /path/to/video.mp4 \
   && date
 ```
 
