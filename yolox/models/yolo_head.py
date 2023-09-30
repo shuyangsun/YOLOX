@@ -153,7 +153,14 @@ class YOLOXHead(nn.Module):
         # expanded_strides = []
 
         for k, (cls_conv, reg_conv, stem, cls_pred, reg_pred, obj_pred) in enumerate(
-            zip(self.cls_convs, self.reg_convs, self.stems, self.cls_preds, self.reg_preds, self.obj_preds)
+            zip(
+                self.cls_convs,
+                self.reg_convs,
+                self.stems,
+                self.cls_preds,
+                self.reg_preds,
+                self.obj_preds,
+            )
         ):
             x = stem(xin[k])
             # stride_this_level = self.strides[k]
@@ -232,9 +239,7 @@ class YOLOXHead(nn.Module):
             self.grids[k] = grid
 
         output = output.view(batch_size, 1, n_ch, hsize, wsize)
-        output = output.permute(0, 1, 3, 4, 2).reshape(
-            batch_size, hsize * wsize, -1
-        )
+        output = output.permute(0, 1, 3, 4, 2).reshape(batch_size, hsize * wsize, -1)
         grid = grid.view(1, -1, 2)
         output[..., :2] = (output[..., :2] + grid) * stride
         output[..., 2:4] = torch.exp(output[..., 2:4]) * stride
@@ -423,7 +428,9 @@ class YOLOXHead(nn.Module):
         ).sum() / num_fg
         if self.use_l1:
             loss_l1 = (
-                self.l1_loss(torch.cat(origin_preds, 1).view(-1, 4)[fg_masks], l1_targets)
+                self.l1_loss(
+                    torch.cat(origin_preds, 1).view(-1, 4)[fg_masks], l1_targets
+                )
             ).sum() / num_fg
         else:
             loss_l1 = 0.0
@@ -462,7 +469,6 @@ class YOLOXHead(nn.Module):
         obj_preds,
         # mode: str = "gpu",
     ):
-
         # if mode == "cpu":
         #     print("-----------Using CPU for the Current Batch-------------")
         #     gt_bboxes_per_image = gt_bboxes_per_image.cpu().float()
@@ -490,10 +496,9 @@ class YOLOXHead(nn.Module):
 
         pair_wise_ious = bboxes_iou(gt_bboxes_per_image, bboxes_preds_per_image, False)
 
-        gt_cls_per_image = (
-            F.one_hot(gt_classes.to(torch.int64), self.num_classes)
-            .float()
-        )
+        gt_cls_per_image = F.one_hot(
+            gt_classes.to(torch.int64), self.num_classes
+        ).float()
         pair_wise_ious_loss = -torch.log(pair_wise_ious + 1e-8)
 
         # if mode == "cpu":
@@ -506,7 +511,7 @@ class YOLOXHead(nn.Module):
             pair_wise_cls_loss = F.binary_cross_entropy(
                 cls_preds_.unsqueeze(0).repeat(num_gt, 1, 1),
                 gt_cls_per_image.unsqueeze(1).repeat(1, num_in_boxes_anchor, 1),
-                reduction="none"
+                reduction="none",
             ).sum(-1)
         del cls_preds_
 
@@ -539,7 +544,11 @@ class YOLOXHead(nn.Module):
         )
 
     def get_geometry_constraint(
-        self, gt_bboxes_per_image, expanded_strides, x_shifts, y_shifts,
+        self,
+        gt_bboxes_per_image,
+        expanded_strides,
+        x_shifts,
+        y_shifts,
     ):
         """
         Calculate whether the center of an object is located in a fixed range of
@@ -547,8 +556,12 @@ class YOLOXHead(nn.Module):
         the number of candidate anchors so that the GPU memory is saved.
         """
         expanded_strides_per_image = expanded_strides[0]
-        x_centers_per_image = ((x_shifts[0] + 0.5) * expanded_strides_per_image).unsqueeze(0)
-        y_centers_per_image = ((y_shifts[0] + 0.5) * expanded_strides_per_image).unsqueeze(0)
+        x_centers_per_image = (
+            (x_shifts[0] + 0.5) * expanded_strides_per_image
+        ).unsqueeze(0)
+        y_centers_per_image = (
+            (y_shifts[0] + 0.5) * expanded_strides_per_image
+        ).unsqueeze(0)
 
         # in fixed center
         center_radius = 1.5
@@ -576,9 +589,7 @@ class YOLOXHead(nn.Module):
         topk_ious, _ = torch.topk(pair_wise_ious, n_candidate_k, dim=1)
         dynamic_ks = torch.clamp(topk_ious.sum(1).int(), min=1)
         for gt_idx in range(num_gt):
-            _, pos_idx = torch.topk(
-                cost[gt_idx], k=dynamic_ks[gt_idx], largest=False
-            )
+            _, pos_idx = torch.topk(cost[gt_idx], k=dynamic_ks[gt_idx], largest=False)
             matching_matrix[gt_idx][pos_idx] = 1
 
         del topk_ious, dynamic_ks, pos_idx
@@ -603,7 +614,9 @@ class YOLOXHead(nn.Module):
         ]
         return num_fg, gt_matched_classes, pred_ious_this_matching, matched_gt_inds
 
-    def visualize_assign_result(self, xin, labels=None, imgs=None, save_prefix="assign_vis_"):
+    def visualize_assign_result(
+        self, xin, labels=None, imgs=None, save_prefix="assign_vis_"
+    ):
         # original forward logic
         outputs, x_shifts, y_shifts, expanded_strides = [], [], [], []
         # TODO: use forward logic here.
@@ -622,7 +635,9 @@ class YOLOXHead(nn.Module):
             obj_output = self.obj_preds[k](reg_feat)
 
             output = torch.cat([reg_output, obj_output, cls_output], 1)
-            output, grid = self.get_output_and_grid(output, k, stride_this_level, xin[0].type())
+            output, grid = self.get_output_and_grid(
+                output, k, stride_this_level, xin[0].type()
+            )
             x_shifts.append(grid[:, :, 0])
             y_shifts.append(grid[:, :, 1])
             expanded_strides.append(
@@ -652,16 +667,26 @@ class YOLOXHead(nn.Module):
                 gt_classes = label[:num_gt, 0]
                 bboxes_preds_per_image = bbox_preds[batch_idx]
                 _, fg_mask, _, matched_gt_inds, _ = self.get_assignments(  # noqa
-                    batch_idx, num_gt, gt_bboxes_per_image, gt_classes,
-                    bboxes_preds_per_image, expanded_strides, x_shifts,
-                    y_shifts, cls_preds, obj_preds,
+                    batch_idx,
+                    num_gt,
+                    gt_bboxes_per_image,
+                    gt_classes,
+                    bboxes_preds_per_image,
+                    expanded_strides,
+                    x_shifts,
+                    y_shifts,
+                    cls_preds,
+                    obj_preds,
                 )
 
             img = img.cpu().numpy().copy()  # copy is crucial here
-            coords = torch.stack([
-                ((x_shifts + 0.5) * expanded_strides).flatten()[fg_mask],
-                ((y_shifts + 0.5) * expanded_strides).flatten()[fg_mask],
-            ], 1)
+            coords = torch.stack(
+                [
+                    ((x_shifts + 0.5) * expanded_strides).flatten()[fg_mask],
+                    ((y_shifts + 0.5) * expanded_strides).flatten()[fg_mask],
+                ],
+                1,
+            )
 
             xyxy_boxes = cxcywh2xyxy(gt_bboxes_per_image)
             save_name = save_prefix + str(batch_idx) + ".png"
