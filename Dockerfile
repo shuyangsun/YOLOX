@@ -3,7 +3,7 @@ FROM nvcr.io/nvidia/tensorrt:23.11-py3
 # Install NVIDIA container runtime following instructions at
 # https://stackoverflow.com/a/61737404/2177724
 
-# Copy "yolox_l.pth" is under the "model" directory in this repo first.
+# Copy "yolox_x.pth" is under the "model" directory in this repo first.
 
 # Build image:
 # docker image build . -t ssml/yolox:latest
@@ -35,10 +35,11 @@ ADD yolox yolox
 ADD exps exps
 ADD tools tools
 ADD setup.py setup.py
+ADD README.md README.md
 RUN pip install -e .
 
 RUN mkdir model
-ADD model/yolox_l.pth model/yolox_l.pth
+ADD model/yolox_x.pth model/yolox_x.pth
 
 WORKDIR /yolox
 ENTRYPOINT python tools/trt.py --exp_file exps/default/yolox_x.py -c model/yolox_x.pth -i 1024 -b 128 -d cuda:0

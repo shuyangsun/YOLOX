@@ -32,8 +32,7 @@ def get_install_requirements():
 def get_yolox_version():
     with open("yolox/__init__.py", "r") as f:
         version = re.search(
-            r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
-            f.read(), re.MULTILINE
+            r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE
         ).group(1)
     return version
 
@@ -47,9 +46,12 @@ def get_long_description():
 def get_ext_modules():
     ext_module = []
     if sys.platform != "win32":  # pre-compile ops on linux
-        assert TORCH_AVAILABLE, "torch is required for pre-compiling ops, please install it first."
+        assert (
+            TORCH_AVAILABLE
+        ), "torch is required for pre-compiling ops, please install it first."
         # if any other op is added, please also add it here
         from yolox.layers import FastCOCOEvalOp
+
         ext_module.append(FastCOCOEvalOp().build_op())
     return ext_module
 
@@ -67,7 +69,8 @@ setuptools.setup(
     author="megvii basedet team",
     url="https://github.com/Megvii-BaseDetection/YOLOX",
     package_dir=get_package_dir(),
-    packages=setuptools.find_packages(exclude=("tests", "tools")) + list(get_package_dir().keys()),
+    packages=setuptools.find_packages(exclude=("tests", "tools"))
+    + list(get_package_dir().keys()),
     python_requires=">=3.6",
     install_requires=get_install_requirements(),
     setup_requires=["wheel"],  # avoid building error when pip is not updated
@@ -77,7 +80,8 @@ setuptools.setup(
     ext_modules=get_ext_modules(),
     cmdclass=get_cmd_class(),
     classifiers=[
-        "Programming Language :: Python :: 3", "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Operating System :: OS Independent",
         "License :: OSI Approved :: Apache Software License",
     ],
     project_urls={
