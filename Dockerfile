@@ -1,7 +1,11 @@
 FROM nvcr.io/nvidia/tensorrt:23.11-py3
 
-# Build image:
+# Install NVIDIA container runtime following instructions at
+# https://stackoverflow.com/a/61737404/2177724
+
 # Copy "yolox_l.pth" is under the "model" directory in this repo first.
+
+# Build image:
 # docker image build . -t ssml/yolox:latest
 
 # Run image:
@@ -22,12 +26,20 @@ RUN source .venv/bin/activate
 ADD requirements_exact.txt requirements.txt
 RUN pip install -r requirements.txt
 
+WORKDIR /
+ADD torch2trt torch2trt
+WORKDIR /torch2trt
+RUN python setup.py install
+
+WORKDIR /yolox
 ADD yolox yolox
 ADD exps exps
 ADD tools tools
+ADD setup.py setup.py
+RUN pip install -e .
 
 RUN mkdir model
-
 ADD model/yolox_l.pth model/yolox_l.pth
 
+WORKDIR /yolox
 ENTRYPOINT python tools/trt.py --exp_file exps/default/yolox_x.py -c model/yolox_x.pth -i 1024 -b 128 -d cuda:0
