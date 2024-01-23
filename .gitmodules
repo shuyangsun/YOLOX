@@ -1,0 +1,4 @@
+[submodule "torch2trt"]
+	path = torch2trt
+	url = https://github.com/shuyangsun/torch2trt.git
+	branch = feature/main-shuyangsun
