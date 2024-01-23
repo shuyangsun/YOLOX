@@ -11,10 +11,9 @@ FROM nvcr.io/nvidia/tensorrt:23.11-py3
 # Run image:
 # docker run --gpus device=0 ssml/yolox:latest
 
-# Setup Python
+ENV CUDA_HOME=/usr/local/cuda
 
 # YOLOX
-
 RUN mkdir /yolox
 WORKDIR /yolox
 
