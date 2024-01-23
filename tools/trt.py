@@ -93,6 +93,9 @@ def make_parser():
         default=1,
         help="number of frames for benchmark, rounded up to nearest multiple of batch size",
     )
+    parser.add_argument(
+        "-o", "--output", type=str, help="path to output directory (not file)"
+    )
     return parser
 
 
@@ -175,11 +178,12 @@ def main():
         components[-1] += f"_trt_b{args.batch}_{device_postfix}"
         out_basename = ".".join(components)
 
-        torch.save(
-            model_trt.state_dict(), os.path.join(file_name, f"{out_basename}.pth")
-        )
+        out_dir: str = args.output
+        if out_dir is None:
+            out_dir = file_name
+        torch.save(model_trt.state_dict(), os.path.join(out_dir, f"{out_basename}.pth"))
         logger.info("Converted TensorRT model done.")
-        engine_file = os.path.join(file_name, f"{out_basename}.engine")
+        engine_file = os.path.join(out_dir, f"{out_basename}.engine")
         engine_file_demo = os.path.join(
             "demo", "TensorRT", "cpp", f"{out_basename}.engine"
         )
