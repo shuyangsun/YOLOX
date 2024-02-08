@@ -135,6 +135,7 @@ def main():
         ]
         while len(inputs) < args.batch:
             inputs.append(inputs[0])
+        inputs = [torch.cat(inputs)]
         if args.samples is not None:
             inputs = [
                 prepare_samples(args.samples, exp.test_size, args.batch, args.device)
