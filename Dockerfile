@@ -12,6 +12,7 @@ FROM nvcr.io/nvidia/tensorrt:23.11-py3
 # docker run --gpus device=0 ssml/yolox:latest
 
 ENV CUDA_HOME=/usr/local/cuda
+ENV BATCH 32
 
 # YOLOX
 RUN mkdir /yolox
@@ -42,4 +43,4 @@ RUN mkdir model
 ADD model/yolox_x.pth model/yolox_x.pth
 
 WORKDIR /yolox
-ENTRYPOINT python tools/trt.py --exp_file exps/default/yolox_x.py -c model/yolox_x.pth -i 1024 -b 128 -d cuda:0
+ENTRYPOINT python tools/trt.py --exp_file exps/default/yolox_x.py -c model/yolox_x.pth -i 1024 -b ${BATCH} -d cuda:0
