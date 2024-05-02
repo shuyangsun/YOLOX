@@ -32,13 +32,17 @@ from yolox.utils import (
     synchronize
 )
 
+from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead  # Ensure these are correctly imported
 
-class Trainer:
-    def __init__(self, exp: Exp, args):
+
+class DistillationTrainer:
+    def __init__(self, exp: Exp, args, selected_class=None):
         # init function only defines some basic attr, other attrs like model, optimizer are built in
         # before_train methods.
         self.exp = exp
         self.args = args
+        self.selected_classes = selected_class
+        self.teacher_path = self.args.teacher_model_path
 
         # training related attr
         self.max_epoch = exp.max_epoch
@@ -101,10 +105,10 @@ class Trainer:
         inps, targets = self.exp.preprocess(inps, targets, self.input_size)
         data_end_time = time.time()
 
+
         with torch.cuda.amp.autocast(enabled=self.amp_training):
             outputs = self.model(inps, targets)
-
-        loss = outputs["total_loss"]
+            loss = outputs["total_loss"]
 
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
@@ -126,15 +130,41 @@ class Trainer:
             **outputs,
         )
 
+    def load_and_filter_teacher_model(self):
+        teacher_model = self.exp.get_model()
+        teacher_model.eval()
+
+
+        full_state_dict = torch.load(self.teacher_path, map_location="cpu")
+
+        if self.selected_classes:
+            for key in ['head.cls_preds.0.weight', 'head.cls_preds.1.weight', 'head.cls_preds.2.weight']:
+                # Filter weights
+                filtered_weights = full_state_dict['model'][key][self.selected_classes, :, :, :]
+                full_state_dict['model'][key] = filtered_weights
+                # If there are biases associated with these weights
+                bias_key = key.replace('weight', 'bias')
+                filtered_bias = full_state_dict['model'][bias_key][self.selected_classes]
+                full_state_dict['model'][bias_key] = filtered_bias
+        teacher_model.load_state_dict(full_state_dict["model"])
+        teacher_model.eval()
+
+        # Not sure if necessary
+        self.teacher_model = teacher_model
+
     def before_train(self):
         logger.info("args: {}".format(self.args))
         logger.info("exp value:\n{}".format(self.exp))
+        logger.info("Teacher path: {}".format(self.teacher_path))
+        logger.info("selected classes:\n{}".format(self.selected_classes))
+
+        self.load_and_filter_teacher_model()
 
         # model related init
         torch.cuda.set_device(self.local_rank)
-        model = self.exp.get_model()
+        model = self.init_student_model()
         logger.info(
-            "Model Summary: {}".format(get_model_info(model, self.exp.test_size))
+            "Student Model Summary: {}".format(get_model_info(model, self.exp.test_size))
         )
         model.to(self.device)
 
@@ -169,9 +199,7 @@ class Trainer:
         if self.use_model_ema:
             self.ema_model = ModelEMA(model, 0.9998)
             self.ema_model.updates = self.max_iter * self.start_epoch
-
         self.model = model
-        self.model.train()
 
         self.evaluator = self.exp.get_evaluator(
             batch_size=self.args.batch_size, is_distributed=self.is_distributed
@@ -190,7 +218,7 @@ class Trainer:
                 raise ValueError("logger must be either 'tensorboard' or 'wandb'")
 
         logger.info("Training start...")
-        logger.info("\n{}".format(model))
+        logger.info("\n{}".format(self.model))
 
     def after_train(self):
         logger.info(
@@ -389,3 +417,13 @@ class Trainer:
                         "curr_ap": ap
                     }
                 )
+
+    def init_student_model(self):
+        if self.selected_classes:
+            student_head = YOLOXHead(len(self.selected_classes))  # Ensure the student model matches the teacher's setup
+            student_model = YOLOX(YOLOPAFPN(), student_head)
+        else:
+            student_model = YOLOX()
+
+        student_model.train()
+        return student_model
