@@ -33,7 +33,9 @@ from yolox.utils import (
 )
 
 from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead  # Ensure these are correctly imported
-
+import torch.optim as optim
+import torch.nn as nn
+import torch.nn.functional as F
 
 class DistillationTrainer:
     def __init__(self, exp: Exp, args, selected_class=None):
@@ -45,7 +47,8 @@ class DistillationTrainer:
         self.teacher_path = self.args.teacher_model_path
 
         # training related attr
-        self.max_epoch = exp.max_epoch
+        # self.max_epoch = exp.max_epoch
+        self.max_epoch = 2
         self.amp_training = args.fp16
         self.scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
         self.is_distributed = get_world_size() > 1
@@ -107,8 +110,9 @@ class DistillationTrainer:
 
 
         with torch.cuda.amp.autocast(enabled=self.amp_training):
-            outputs = self.model(inps, targets)
-            loss = outputs["total_loss"]
+            teacher_outputs = self.teacher_model(inps)
+            outputs = self.model(inps)
+            loss = self.distillation_loss(outputs, teacher_outputs, targets)
 
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
@@ -132,8 +136,6 @@ class DistillationTrainer:
 
     def load_and_filter_teacher_model(self):
         teacher_model = self.exp.get_model()
-        teacher_model.eval()
-
 
         full_state_dict = torch.load(self.teacher_path, map_location="cpu")
 
@@ -159,6 +161,7 @@ class DistillationTrainer:
         logger.info("selected classes:\n{}".format(self.selected_classes))
 
         self.load_and_filter_teacher_model()
+        self.teacher_model.to(self.device)
 
         # model related init
         torch.cuda.set_device(self.local_rank)
@@ -200,6 +203,7 @@ class DistillationTrainer:
             self.ema_model = ModelEMA(model, 0.9998)
             self.ema_model.updates = self.max_iter * self.start_epoch
         self.model = model
+        self.model.train()
 
         self.evaluator = self.exp.get_evaluator(
             batch_size=self.args.batch_size, is_distributed=self.is_distributed
@@ -218,7 +222,6 @@ class DistillationTrainer:
                 raise ValueError("logger must be either 'tensorboard' or 'wandb'")
 
         logger.info("Training start...")
-        logger.info("\n{}".format(self.model))
 
     def after_train(self):
         logger.info(
@@ -427,3 +430,35 @@ class DistillationTrainer:
 
         student_model.train()
         return student_model
+
+    def distillation_loss(self, student_logits, teacher_logits, targets, temperature=3.0, alpha=0.5):
+        """
+        Calculate the knowledge distillation loss.
+
+        Parameters:
+        - student_logits: logits output by the student model.
+        - teacher_logits: logits output by the teacher model.
+        - targets: true labels.
+        - temperature: temperature used to soften probability distributions. Higher values increase softness.
+        - alpha: weighting factor for the distillation loss component.
+
+        Returns:
+        - Combined knowledge distillation loss.
+        """
+        # Calculate the KL divergence loss between soft teacher and student probabilities
+        soft_teacher_probs = F.log_softmax(teacher_logits / temperature, dim=1)
+        print(soft_teacher_probs)
+        soft_student_probs = F.softmax(student_logits / temperature, dim=1)
+        print(soft_student_probs)
+        distillation_loss = F.kl_div(soft_student_probs, soft_teacher_probs.exp(), reduction='batchmean') * (
+                    temperature ** 2)
+        print(distillation_loss)
+
+        # Calculate the traditional cross-entropy loss
+        student_loss = F.cross_entropy(student_logits, targets)
+        print(student_loss)
+        # Combine the losses
+        total_loss = alpha * distillation_loss + (1 - alpha) * student_loss
+        print(total_loss)
+
+        return total_loss

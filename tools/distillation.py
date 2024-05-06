@@ -19,7 +19,9 @@ def make_parser():
     parser = argparse.ArgumentParser("YOLOX distillation parser")
     parser.add_argument("-expn", "--experiment-name", type=str, default=None)
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
-
+    parser.add_argument(
+        "-t", "--teacher_model_path", type=str, help="path to teacher model path. Must end in .pth"
+    )
     # distributed
     parser.add_argument(
         "--dist-backend", default="nccl", type=str, help="distributed backend"
@@ -96,7 +98,9 @@ def make_parser():
     )
     return parser
 
-
+# def _get_selected_classes():
+#     selected_classes = [0,1,2,3,5,7]
+#     return selected_classes
 @logger.catch
 def main(exp: Exp, args):
     if exp.seed is not None:
@@ -113,15 +117,16 @@ def main(exp: Exp, args):
     configure_nccl()
     configure_omp()
     cudnn.benchmark = True
-
+    exp.max_epoch = 2
+    # trainer = DistillationTrainer(exp, args, _get_selected_classes())
     trainer = DistillationTrainer(exp, args)
     trainer.train()
-
 
 if __name__ == "__main__":
     configure_module()
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
+    # exp.num_classes = len(_get_selected_classes())
     exp.merge(args.opts)
     check_exp_value(exp)
 
